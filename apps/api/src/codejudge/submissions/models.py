@@ -60,6 +60,9 @@ class Submission(Base):
     only_tests: Mapped[list[str] | None] = mapped_column(JSONB)
     # Submitted after the assignment's deadline (kept and shown, scored per the policy).
     late: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Set by the context (an ICPC contest while it runs, an interview): non-staff then see
+    # the overall verdict and the public samples, not how many hidden tests passed.
+    hide_test_details: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     job_id: Mapped[str] = mapped_column(String(32), nullable=False, unique=True)
     attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     worker: Mapped[str | None] = mapped_column(String(100))

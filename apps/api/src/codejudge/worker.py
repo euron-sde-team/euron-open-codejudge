@@ -25,6 +25,8 @@ log = logging.getLogger("codejudge.worker")
 
 def import_task_modules() -> None:
     """Every module that registers a periodic task."""
+    from codejudge.assessments import service as _assessments  # noqa: F401
+    from codejudge.plagiarism import service as _plagiarism  # noqa: F401
     from codejudge.submissions import tasks as _submissions  # noqa: F401
 
 

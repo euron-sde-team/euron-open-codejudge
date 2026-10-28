@@ -47,8 +47,10 @@ def safe_members(archive: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
         name = PurePosixPath(info.filename)
         if name.is_absolute() or ".." in name.parts or "\\" in info.filename:
             raise PackageError(f"unsafe path in package: {info.filename!r}")
-        mode = info.external_attr >> 16
-        if mode and not (stat.S_ISREG(mode) or stat.S_ISDIR(mode)):
+        # Many zip writers (Python's included) store permissions without a file type; only an
+        # explicit type other than file or directory (a symlink, a device) is refused.
+        kind = stat.S_IFMT(info.external_attr >> 16)
+        if kind and kind not in (stat.S_IFREG, stat.S_IFDIR):
             raise PackageError(f"package entry is not a plain file: {info.filename!r}")
         total += info.file_size
         if total > MAX_UNPACKED_BYTES:

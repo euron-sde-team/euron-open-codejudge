@@ -68,7 +68,8 @@ class RunLimits:
     stack_mb: int = 64
     open_files: int = 64
     tmp_mb: int = 64
-    proc: bool = False
+    # Extra environment ("NAME=value"); the sandbox otherwise sees only a minimal PATH.
+    env: tuple[str, ...] = ()
 
 
 @dataclass
@@ -142,13 +143,14 @@ class Sandbox:
             "--mount",
             f"none:/tmp:tmpfs:size={limits.tmp_mb << 20}",
         ]
-        if not limits.proc:
-            cmd.append("--disable_proc")
+        # No /proc: Docker overmounts parts of the container's /proc, and the kernel then
+        # refuses a fresh procfs mount inside a user namespace. Programs do not need it.
+        cmd.append("--disable_proc")
         for path in self.read_only:
             cmd += ["--bindmount_ro", path]
         for m in mounts:
             cmd += ["--bindmount" if m.writable else "--bindmount_ro", f"{m.source}:{m.target}"]
-        for env in ENV:
+        for env in (*ENV, *limits.env):
             cmd += ["--env", env]
         return [*cmd, "--", *argv]
 
@@ -188,10 +190,15 @@ class Sandbox:
         cpu_ms = round((usage.ru_utime + usage.ru_stime) * 1000)
         exit_code, sig = _decode(status)
         log_text = log.read_text(errors="replace")[-4000:] if log.exists() else ""
-        # nsjail reports a killed child as 128 + signal; recover the signal.
-        if exit_code is not None and exit_code > 128 and "terminated with signal" in log_text:
-            sig, exit_code = exit_code - 128, None
         launch_failed = exit_code == 255 and "Couldn't launch the child process" in log_text
+        # nsjail reports a child killed by a signal as 128 + signal; recover the signal.
+        if (
+            not launch_failed
+            and exit_code is not None
+            and 128 < exit_code <= 128 + 64
+            and "signal" in log_text
+        ):
+            sig, exit_code = exit_code - 128, None
         return RunResult(
             exit_code=exit_code,
             signal=sig,

@@ -138,6 +138,7 @@ async def submit(
         context=context,
         context_id=context_id,
         late=admission.late,
+        hide_test_details=not admission.show_test_details,
         job_id=new_job_id(),
         max_score=v.max_score,
     )
@@ -252,9 +253,12 @@ def to_out(
     own = (who.user_id is not None and s.user_id == who.user_id) or (
         who.candidate_id is not None and s.candidate_id == who.candidate_id
     )
+    hide = s.hide_test_details and not who.is_staff
     tests = []
     for t in s.tests:
         sample = str(t.get("name", "")).startswith("sample/")
+        if hide and not sample:
+            continue
         tests.append(
             TestOut(
                 name=t["name"],
@@ -289,7 +293,7 @@ def to_out(
         compile_output=s.compile_output if (own or who.is_staff) else None,
         source=s.source if with_source and (own or who.is_staff) else None,
         tests=tests,
-        groups=list(s.groups or []),
+        groups=[] if hide else list(s.groups or []),
         run_input=s.run_input if own else None,
         run_output=s.run_output if own else None,
         error=s.error if who.is_staff else None,

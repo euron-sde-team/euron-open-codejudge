@@ -9,6 +9,8 @@
 #   rss      the runtime's own heap flag ({mem}) caps it, the peak resident memory is
 #            checked after the run, and the worker container's memory limit is the
 #            backstop (for the JVM and V8, which reserve gigabytes of address space)
+# env adds environment variables (the sandbox has no /proc, so the JDK cannot find its
+# libraries from its own path and gets LD_LIBRARY_PATH instead).
 # time_factor multiplies the problem's time limit for this language (1.0: the same limit
 # for everyone; raise it to give slower runtimes more time).
 
@@ -55,8 +57,9 @@ cpp17:
 java21:
   name: Java 21
   source: Main.java
-  compile: ["/usr/bin/javac", "-J-Xmx512m", "-J-XX:+UseSerialGC", "-encoding", "UTF-8", "-d", ".", "{src}"]
-  run: ["/usr/bin/java", "-Xmx{mem}m", "-Xss{stack}m", "-XX:+UseSerialGC", "-XX:TieredStopAtLevel=1", "-XX:-UsePerfData", "-Xshare:auto", "-cp", ".", "Main"]
+  compile: ["/usr/lib/jvm/java-21/bin/javac", "-J-Xmx512m", "-J-XX:+UseSerialGC", "-encoding", "UTF-8", "-d", ".", "{src}"]
+  run: ["/usr/lib/jvm/java-21/bin/java", "-Xmx{mem}m", "-Xss{stack}m", "-XX:+UseSerialGC", "-XX:TieredStopAtLevel=1", "-XX:-UsePerfData", "-Xshare:auto", "-cp", ".", "Main"]
+  env: ["LD_LIBRARY_PATH=/usr/lib/jvm/java-21/lib"]
   memory_mode: rss
   # The JVM's own footprint (code cache, metaspace) counted on top of the heap.
   memory_overhead_mb: 64

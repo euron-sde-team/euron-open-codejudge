@@ -7,8 +7,8 @@ setter code) run in a sandbox of their own with read-only access to the three fi
 need.
 
 Verdicts are decided from measurements, in this order: the sandbox failed to start
-(internal error); the time limit (CPU time over the limit, or the wall clock ran out);
-output over the limit; memory over the limit; a non-zero exit or a signal (runtime
+(internal error); output at the limit; the time limit (CPU time over the limit, or the wall
+clock ran out); memory over the limit; a non-zero exit or a signal (runtime
 error); then the checker (accepted or wrong answer). Only sample tests return output and
 checker messages: for hidden tests those would reveal the answers.
 """
@@ -176,7 +176,7 @@ class Judge:
             output_bytes=64 << 20,
             processes=64,
             tmp_mb=256,
-            proc=True,
+            env=tuple(language.env),
         )
         argv = language.command(language.compile, mem_mb=cfg.compile_memory_mb, stack_mb=64)
         run = self.sandbox.run(
@@ -212,7 +212,7 @@ class Judge:
             output_bytes=min(job.limits.output_mb << 20, self.config.max_output_bytes),
             processes=language.threads,
             stack_mb=min(mem, 256),
-            proc=language.memory_mode == "rss",
+            env=tuple(language.env),
         )
 
     def _execute(
@@ -236,10 +236,13 @@ class Judge:
     ) -> Verdict:
         if run.launch_failed:
             return Verdict.IE
-        if run.wall_timed_out or run.cpu_ms > limits.cpu_ms or run.signal == signal.SIGXCPU:
-            return Verdict.TLE
+        # Output first: once a write is cut at the limit, C stdio marks the stream failed and
+        # later writes return without a system call, so a program printing in a loop never
+        # gets SIGXFSZ and spins until the CPU limit. Output at the cap is the evidence.
         if run.output_bytes >= limits.output_bytes or run.signal == signal.SIGXFSZ:
             return Verdict.OLE
+        if run.wall_timed_out or run.cpu_ms > limits.cpu_ms or run.signal == signal.SIGXCPU:
+            return Verdict.TLE
         limit_kb = job.limits.memory_mb * 1024
         oom = any(marker in stderr for marker in OOM_MARKERS)
         if language.memory_mode == "rss":
@@ -340,7 +343,7 @@ class Judge:
             address_mb=1024 if language.memory_mode == "address" else None,
             output_bytes=1 << 20,
             processes=language.threads,
-            proc=language.memory_mode == "rss",
+            env=tuple(language.env),
         )
         argv = language.command(language.run, mem_mb=512, stack_mb=64) + args
         run = self.sandbox.run(

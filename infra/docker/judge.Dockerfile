@@ -40,7 +40,8 @@ RUN if [ -n "${APT_MIRROR}" ]; then \
 RUN apt-get update && apt-get install -y --no-install-recommends \
       tini ca-certificates libprotobuf32t64 libnl-route-3-200 \
       python3 python3-venv g++ openjdk-21-jdk-headless nodejs \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && ln -s "/usr/lib/jvm/java-21-openjdk-$(dpkg --print-architecture)" /usr/lib/jvm/java-21
 
 # ── The worker's own virtualenv, built on the same system Python ─────────────
 FROM toolchains AS build
@@ -62,7 +63,7 @@ COPY --from=nsjail /nsjail /usr/local/bin/nsjail
 COPY --from=build /opt/venv /opt/venv
 # The worker lives in /opt, which the sandbox never mounts: submissions see /usr, /lib
 # and /bin read-only, their own box and a private /tmp, nothing of the worker.
-ENV PATH=/opt/venv/bin:/usr/local/bin:/usr/bin:/bin PYTHONUNBUFFERED=1 \
+ENV PATH=/opt/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 TZ=UTC
 RUN groupadd --system --gid 10001 judge \
  && useradd --system --uid 10001 --gid judge --home-dir /var/cache/codejudge \

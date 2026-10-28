@@ -25,6 +25,7 @@ class Language(BaseModel):
     compile: list[str] = Field(default_factory=list)
     exe: str | None = None
     run: list[str]
+    env: list[str] = Field(default_factory=list)
     memory_mode: Literal["address", "rss"] = "address"
     memory_overhead_mb: int = Field(0, ge=0, le=1024)
     time_factor: float = Field(1.0, gt=0, le=10)
