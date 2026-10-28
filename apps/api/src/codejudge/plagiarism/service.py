@@ -29,7 +29,14 @@ from codejudge.core.errors import AppError, NotFoundError
 from codejudge.core.tasks import periodic
 from codejudge.plagiarism import winnow
 from codejudge.plagiarism.models import PlagiarismPair, PlagiarismRun
-from codejudge.plagiarism.schemas import PairDetail, PairOut, RunCreate, RunDetail, RunOut, Side
+from codejudge.plagiarism.schemas import (
+    PairDetail,
+    PairOut,
+    PlagiarismRunCreate,
+    RunDetail,
+    RunOut,
+    Side,
+)
 from codejudge.problems import service as problems
 from codejudge.problems.models import Problem
 from codejudge.submissions.models import Submission
@@ -42,7 +49,7 @@ STALE_RUNNING = timedelta(minutes=30)
 
 
 # ── starting and reading ─────────────────────────────────────────────────────────────
-async def start(session: AsyncSession, data: RunCreate, actor: Actor) -> PlagiarismRun:
+async def start(session: AsyncSession, data: PlagiarismRunCreate, actor: Actor) -> PlagiarismRun:
     if data.scope == "problem":
         scope_id = (await problems.get(session, data.scope_id)).id
     else:

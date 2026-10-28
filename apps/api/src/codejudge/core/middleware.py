@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import secrets
 import time
 
@@ -71,6 +72,13 @@ class RequestContextMiddleware:
 _BODY_METHODS = {"POST", "PUT", "PATCH"}
 
 
+_PACKAGE_PATH = re.compile(r"^/api/v1/problems/(import|[0-9a-f-]{36}/(package|versions))$")
+
+
+def _has_session(headers: dict[bytes, bytes]) -> bool:
+    return b"authorization" in headers or b"cj_session=" in headers.get(b"cookie", b"")
+
+
 class BodySizeLimitMiddleware:
     """Refuses request bodies over ``limit`` bytes with 413, whatever their framing.
 
@@ -88,11 +96,17 @@ class BodySizeLimitMiddleware:
             await self.app(scope, receive, send)
             return
         limit = self.settings.max_body_bytes
-        if scope.get("path", "").startswith("/internal/"):
-            # A long session's report (every turn) can outgrow the dashboard's limit; only
-            # the runtime, holding the internal token, reaches these paths.
+        path = scope.get("path", "")
+        headers = dict(scope.get("headers") or [])
+        if path.startswith("/internal/"):
+            # A judge result with many tests can outgrow the dashboard's limit; only the
+            # judge workers, holding the judge token, reach these paths.
             limit = self.settings.max_internal_body_bytes
-        length = dict(scope.get("headers") or []).get(b"content-length", b"")
+        elif _PACKAGE_PATH.match(path) and _has_session(headers):
+            # Test packages are large by nature. Only staff reach these routes (checked by
+            # the route); requiring a session here keeps anonymous clients at the small limit.
+            limit = self.settings.max_package_bytes
+        length = headers.get(b"content-length", b"")
         if length.isdigit() and int(length) > limit:
             await self._refuse(send, limit)
             return

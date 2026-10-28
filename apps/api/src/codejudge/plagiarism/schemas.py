@@ -13,7 +13,7 @@ from codejudge.core.schemas import ApiModel
 Scope = Literal["problem", "contest", "assignment"]
 
 
-class RunCreate(ApiModel):
+class PlagiarismRunCreate(ApiModel):
     scope: Scope
     scope_id: str = Field(
         description="Problem id or slug, contest id or assignment id", max_length=64

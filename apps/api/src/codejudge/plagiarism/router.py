@@ -10,13 +10,13 @@ from fastapi import APIRouter, Query
 from codejudge.auth.dependencies import Staff
 from codejudge.core.deps import SessionDep
 from codejudge.plagiarism import service
-from codejudge.plagiarism.schemas import PairDetail, RunCreate, RunDetail, RunOut, Scope
+from codejudge.plagiarism.schemas import PairDetail, PlagiarismRunCreate, RunDetail, RunOut, Scope
 
 router = APIRouter(prefix="/api/v1/plagiarism", tags=["plagiarism"])
 
 
 @router.post("/runs", response_model=RunOut, status_code=202, summary="Start a similarity check")
-async def start_run(body: RunCreate, actor: Staff, session: SessionDep) -> RunOut:
+async def start_run(body: PlagiarismRunCreate, actor: Staff, session: SessionDep) -> RunOut:
     return service.run_out(await service.start(session, body, actor))
 
 

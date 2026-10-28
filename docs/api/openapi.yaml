@@ -1,0 +1,7149 @@
+openapi: 3.1.0
+info:
+  title: Euron Open CodeJudge
+  description: "\nAPI of a self-hosted coding assessment platform: problems with hidden tests, submissions\n\
+    judged in an unprivileged sandbox, contests with ICPC and IOI scoreboards, classes with\nassignments,\
+    \ interview assessments, plagiarism checks and optional AI hints.\n\n* Sign in with `POST /api/v1/auth/login`;\
+    \ send the session token as\n  `Authorization: Bearer <token>` (the dashboard uses an HttpOnly cookie\
+    \ instead).\n* `POST /api/v1/submissions` queues a submission; `GET /api/v1/submissions/{id}/events`\n\
+    \  streams its progress and verdict (server-sent events).\n* Interview candidates use the token from\
+    \ their invitation link in the\n  `X-CodeJudge-Candidate` header instead of a session.\n\nJudge workers\
+    \ are a separate service that reaches only `/internal/judge/*`.\n"
+  version: 0.1.0
+paths:
+  /api/v1/auth/login:
+    post:
+      tags:
+      - auth
+      summary: Sign in to the dashboard
+      operationId: login_api_v1_auth_login_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignInOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/auth/logout:
+    post:
+      tags:
+      - auth
+      summary: Sign out
+      description: 'Ends this session server-side too: the token is refused until it expires.'
+      operationId: logout_api_v1_auth_logout_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ack'
+  /api/v1/auth/me:
+    get:
+      tags:
+      - auth
+      summary: The signed-in user
+      operationId: me_api_v1_auth_me_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserOut'
+  /api/v1/auth/password:
+    post:
+      tags:
+      - auth
+      summary: Change your password
+      operationId: password_api_v1_auth_password_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordChange'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignInOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/users:
+    get:
+      tags:
+      - users
+      summary: List dashboard users
+      operationId: list_users_api_v1_users_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/UserOut'
+                type: array
+                title: Response List Users Api V1 Users Get
+    post:
+      tags:
+      - users
+      summary: Invite a dashboard user
+      operationId: create_user_api_v1_users_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/users/{user_id}:
+    patch:
+      tags:
+      - users
+      summary: Update a user's name, role or access
+      operationId: update_user_api_v1_users__user_id__patch
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/languages:
+    get:
+      tags:
+      - problems
+      summary: Languages
+      operationId: languages_api_v1_languages_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/LanguageOut'
+                type: array
+                title: Response Languages Api V1 Languages Get
+  /api/v1/problems:
+    get:
+      tags:
+      - problems
+      summary: List Problems
+      operationId: list_problems_api_v1_problems_get
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 80
+          - type: 'null'
+          title: Q
+      - name: tag
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 40
+          - type: 'null'
+          title: Tag
+      - name: difficulty
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - easy
+            - medium
+            - hard
+            type: string
+          - type: 'null'
+          title: Difficulty
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - draft
+            - published
+            type: string
+          - type: 'null'
+          title: Status
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemPage'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - problems
+      summary: Create Problem
+      operationId: create_problem_api_v1_problems_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProblemCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemSummary'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/problem-tags:
+    get:
+      tags:
+      - problems
+      summary: Tags
+      operationId: tags_api_v1_problem_tags_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/TagCount'
+                type: array
+                title: Response Tags Api V1 Problem Tags Get
+  /api/v1/problems/{ref}:
+    get:
+      tags:
+      - problems
+      summary: Get Problem
+      operationId: get_problem_api_v1_problems__ref__get
+      parameters:
+      - name: ref
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ref
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/problems/{ref}/admin:
+    get:
+      tags:
+      - problems
+      summary: Problem Admin
+      operationId: problem_admin_api_v1_problems__ref__admin_get
+      parameters:
+      - name: ref
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ref
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemAdmin'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/problems/{problem_id}:
+    patch:
+      tags:
+      - problems
+      summary: Update Problem
+      operationId: update_problem_api_v1_problems__problem_id__patch
+      parameters:
+      - name: problem_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Problem Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProblemUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemSummary'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - problems
+      summary: Delete Problem
+      operationId: delete_problem_api_v1_problems__problem_id__delete
+      parameters:
+      - name: problem_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Problem Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/problems/{problem_id}/publish:
+    post:
+      tags:
+      - problems
+      summary: Publish
+      operationId: publish_api_v1_problems__problem_id__publish_post
+      parameters:
+      - name: problem_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Problem Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemSummary'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/problems/{problem_id}/unpublish:
+    post:
+      tags:
+      - problems
+      summary: Unpublish
+      operationId: unpublish_api_v1_problems__problem_id__unpublish_post
+      parameters:
+      - name: problem_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Problem Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemSummary'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/problems/{problem_id}/versions:
+    post:
+      tags:
+      - problems
+      summary: Create Version
+      operationId: create_version_api_v1_problems__problem_id__versions_post
+      parameters:
+      - name: problem_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Problem Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VersionCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/problems/{problem_id}/package:
+    post:
+      tags:
+      - problems
+      summary: Upload Package
+      operationId: upload_package_api_v1_problems__problem_id__package_post
+      parameters:
+      - name: problem_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Problem Id
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_upload_package_api_v1_problems__problem_id__package_post'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/problems/import:
+    post:
+      tags:
+      - problems
+      summary: Import Problem
+      operationId: import_problem_api_v1_problems_import_post
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_import_problem_api_v1_problems_import_post'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportResult'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/problems/{problem_id}/export:
+    get:
+      tags:
+      - problems
+      summary: Export Problem
+      operationId: export_problem_api_v1_problems__problem_id__export_get
+      parameters:
+      - name: problem_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Problem Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/problems/{problem_id}/tests/{name}:
+    get:
+      tags:
+      - problems
+      summary: Get Test Content
+      operationId: get_test_content_api_v1_problems__problem_id__tests__name__get
+      parameters:
+      - name: problem_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Problem Id
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Name
+      - name: part
+        in: query
+        required: false
+        schema:
+          enum:
+          - input
+          - answer
+          type: string
+          default: input
+          title: Part
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/problems/{problem_id}/references:
+    post:
+      tags:
+      - problems
+      summary: Add Reference
+      operationId: add_reference_api_v1_problems__problem_id__references_post
+      parameters:
+      - name: problem_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Problem Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReferenceIn'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReferenceOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/problems/{problem_id}/references/{ref_id}:
+    delete:
+      tags:
+      - problems
+      summary: Remove Reference
+      operationId: remove_reference_api_v1_problems__problem_id__references__ref_id__delete
+      parameters:
+      - name: problem_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Problem Id
+      - name: ref_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Ref Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/problems/{problem_id}/references/judge:
+    post:
+      tags:
+      - problems
+      summary: Judge References
+      operationId: judge_references_api_v1_problems__problem_id__references_judge_post
+      parameters:
+      - name: problem_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Problem Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Judged'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/problems/{problem_id}/rejudge:
+    post:
+      tags:
+      - problems
+      summary: Rejudge Problem
+      operationId: rejudge_problem_api_v1_problems__problem_id__rejudge_post
+      parameters:
+      - name: problem_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Problem Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Judged'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/submissions:
+    post:
+      tags:
+      - submissions
+      summary: Create Submission
+      operationId: create_submission_api_v1_submissions_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmissionCreate'
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - submissions
+      summary: List Submissions
+      description: Your own submissions; staff see everyone's (filter by user, problem, verdict).
+      operationId: list_submissions_api_v1_submissions_get
+      parameters:
+      - name: problem
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: Problem
+      - name: user_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: User Id
+      - name: verdict
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 8
+          - type: 'null'
+          title: Verdict
+      - name: context
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 16
+          - type: 'null'
+          title: Context
+      - name: context_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Context Id
+      - name: mine
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Mine
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionPage'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/runs:
+    post:
+      tags:
+      - submissions
+      summary: Create Run
+      operationId: create_run_api_v1_runs_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunCreate'
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/submissions/{submission_id}:
+    get:
+      tags:
+      - submissions
+      summary: Get Submission
+      operationId: get_submission_api_v1_submissions__submission_id__get
+      parameters:
+      - name: submission_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Submission Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/submissions/{submission_id}/events:
+    get:
+      tags:
+      - submissions
+      summary: Submission Events
+      description: 'Server-sent events until the verdict: ``judging`` updates, then ``done``.'
+      operationId: submission_events_api_v1_submissions__submission_id__events_get
+      parameters:
+      - name: submission_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Submission Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/submissions/rejudge:
+    post:
+      tags:
+      - submissions
+      summary: Rejudge
+      operationId: rejudge_api_v1_submissions_rejudge_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejudgeRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RejudgeResult'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/judge/queue:
+    get:
+      tags:
+      - submissions
+      summary: Queue Status
+      operationId: queue_status_api_v1_judge_queue_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueStatus'
+  /api/v1/contests:
+    get:
+      tags:
+      - contests
+      summary: List Contests
+      operationId: list_contests_api_v1_contests_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/ContestSummary'
+                type: array
+                title: Response List Contests Api V1 Contests Get
+    post:
+      tags:
+      - contests
+      summary: Create Contest
+      operationId: create_contest_api_v1_contests_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContestCreate'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContestOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/contests/join:
+    post:
+      tags:
+      - contests
+      summary: Join
+      operationId: join_api_v1_contests_join_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContestOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/contests/{ref}:
+    get:
+      tags:
+      - contests
+      summary: Get Contest
+      operationId: get_contest_api_v1_contests__ref__get
+      parameters:
+      - name: ref
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ref
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContestOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/contests/{contest_id}:
+    patch:
+      tags:
+      - contests
+      summary: Update Contest
+      operationId: update_contest_api_v1_contests__contest_id__patch
+      parameters:
+      - name: contest_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Contest Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContestUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContestOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - contests
+      summary: Delete Contest
+      operationId: delete_contest_api_v1_contests__contest_id__delete
+      parameters:
+      - name: contest_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Contest Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/contests/{contest_id}/problems:
+    post:
+      tags:
+      - contests
+      summary: Add Problem
+      operationId: add_problem_api_v1_contests__contest_id__problems_post
+      parameters:
+      - name: contest_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Contest Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContestProblemIn'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ContestProblemOut'
+                title: Response Add Problem Api V1 Contests  Contest Id  Problems Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/contests/{contest_id}/problems/{label}:
+    delete:
+      tags:
+      - contests
+      summary: Remove Problem
+      operationId: remove_problem_api_v1_contests__contest_id__problems__label__delete
+      parameters:
+      - name: contest_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Contest Id
+      - name: label
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Label
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/contests/{contest_id}/problems/order:
+    put:
+      tags:
+      - contests
+      summary: Reorder
+      operationId: reorder_api_v1_contests__contest_id__problems_order_put
+      parameters:
+      - name: contest_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Contest Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProblemOrder'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ContestProblemOut'
+                title: Response Reorder Api V1 Contests  Contest Id  Problems Order Put
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/contests/{ref}/problems/{label}:
+    get:
+      tags:
+      - contests
+      summary: Contest Problem
+      operationId: contest_problem_api_v1_contests__ref__problems__label__get
+      parameters:
+      - name: ref
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ref
+      - name: label
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Label
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/contests/{ref}/register:
+    post:
+      tags:
+      - contests
+      summary: Register
+      operationId: register_api_v1_contests__ref__register_post
+      parameters:
+      - name: ref
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ref
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyStatus'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/contests/{ref}/me:
+    get:
+      tags:
+      - contests
+      summary: My Status
+      operationId: my_status_api_v1_contests__ref__me_get
+      parameters:
+      - name: ref
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ref
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyStatus'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/contests/{ref}/scoreboard:
+    get:
+      tags:
+      - contests
+      summary: Scoreboard
+      operationId: scoreboard_api_v1_contests__ref__scoreboard_get
+      parameters:
+      - name: ref
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ref
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scoreboard'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/contests/{contest_id}/unfreeze:
+    post:
+      tags:
+      - contests
+      summary: Unfreeze
+      operationId: unfreeze_api_v1_contests__contest_id__unfreeze_post
+      parameters:
+      - name: contest_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Contest Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContestOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/contests/{ref}/clarifications:
+    get:
+      tags:
+      - contests
+      summary: Clarifications
+      operationId: clarifications_api_v1_contests__ref__clarifications_get
+      parameters:
+      - name: ref
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ref
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ClarificationOut'
+                title: Response Clarifications Api V1 Contests  Ref  Clarifications Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - contests
+      summary: Ask
+      operationId: ask_api_v1_contests__ref__clarifications_post
+      parameters:
+      - name: ref
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ref
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClarificationIn'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClarificationOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/contests/{contest_id}/announcements:
+    post:
+      tags:
+      - contests
+      summary: Announce
+      operationId: announce_api_v1_contests__contest_id__announcements_post
+      parameters:
+      - name: contest_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Contest Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Announcement'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClarificationOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/contests/{contest_id}/clarifications/{clar_id}/answer:
+    post:
+      tags:
+      - contests
+      summary: Answer
+      operationId: answer_api_v1_contests__contest_id__clarifications__clar_id__answer_post
+      parameters:
+      - name: contest_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Contest Id
+      - name: clar_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Clar Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Announcement'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClarificationOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/contests/{contest_id}/submissions:
+    get:
+      tags:
+      - contests
+      summary: Contest Submissions
+      description: 'Every submission of the contest (staff): who, which problem, when, the verdict.'
+      operationId: contest_submissions_api_v1_contests__contest_id__submissions_get
+      parameters:
+      - name: contest_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Contest Id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContestSubmissionPage'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/classes:
+    get:
+      tags:
+      - classrooms
+      summary: List Classes
+      operationId: list_classes_api_v1_classes_get
+      parameters:
+      - name: archived
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Archived
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ClassOut'
+                title: Response List Classes Api V1 Classes Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - classrooms
+      summary: Create Class
+      operationId: create_class_api_v1_classes_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClassCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/classes/join:
+    post:
+      tags:
+      - classrooms
+      summary: Join Class
+      operationId: join_class_api_v1_classes_join_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/classes/{class_id}:
+    get:
+      tags:
+      - classrooms
+      summary: Get Class
+      operationId: get_class_api_v1_classes__class_id__get
+      parameters:
+      - name: class_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Class Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - classrooms
+      summary: Update Class
+      operationId: update_class_api_v1_classes__class_id__patch
+      parameters:
+      - name: class_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Class Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClassUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - classrooms
+      summary: Delete Class
+      operationId: delete_class_api_v1_classes__class_id__delete
+      parameters:
+      - name: class_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Class Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/classes/{class_id}/rotate-code:
+    post:
+      tags:
+      - classrooms
+      summary: Rotate Code
+      operationId: rotate_code_api_v1_classes__class_id__rotate_code_post
+      parameters:
+      - name: class_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Class Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/classes/{class_id}/members:
+    get:
+      tags:
+      - classrooms
+      summary: Members
+      operationId: members_api_v1_classes__class_id__members_get
+      parameters:
+      - name: class_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Class Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MemberOut'
+                title: Response Members Api V1 Classes  Class Id  Members Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - classrooms
+      summary: Add Member
+      operationId: add_member_api_v1_classes__class_id__members_post
+      parameters:
+      - name: class_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Class Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberAdd'
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/classes/{class_id}/members/{user_id}:
+    delete:
+      tags:
+      - classrooms
+      summary: Remove Member
+      operationId: remove_member_api_v1_classes__class_id__members__user_id__delete
+      parameters:
+      - name: class_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Class Id
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/classes/{class_id}/assignments:
+    get:
+      tags:
+      - classrooms
+      summary: Class Assignments
+      operationId: class_assignments_api_v1_classes__class_id__assignments_get
+      parameters:
+      - name: class_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Class Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AssignmentOut'
+                title: Response Class Assignments Api V1 Classes  Class Id  Assignments Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - classrooms
+      summary: Create Assignment
+      operationId: create_assignment_api_v1_classes__class_id__assignments_post
+      parameters:
+      - name: class_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Class Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignmentOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/my/assignments:
+    get:
+      tags:
+      - classrooms
+      summary: My Assignments
+      operationId: my_assignments_api_v1_my_assignments_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/AssignmentOut'
+                type: array
+                title: Response My Assignments Api V1 My Assignments Get
+  /api/v1/assignments/{assignment_id}:
+    get:
+      tags:
+      - classrooms
+      summary: Get Assignment
+      operationId: get_assignment_api_v1_assignments__assignment_id__get
+      parameters:
+      - name: assignment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Assignment Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignmentOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - classrooms
+      summary: Update Assignment
+      operationId: update_assignment_api_v1_assignments__assignment_id__patch
+      parameters:
+      - name: assignment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Assignment Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignmentOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - classrooms
+      summary: Delete Assignment
+      operationId: delete_assignment_api_v1_assignments__assignment_id__delete
+      parameters:
+      - name: assignment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Assignment Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/assignments/{assignment_id}/extensions:
+    put:
+      tags:
+      - classrooms
+      summary: Set Extension
+      operationId: set_extension_api_v1_assignments__assignment_id__extensions_put
+      parameters:
+      - name: assignment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Assignment Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtensionIn'
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/assignments/{assignment_id}/problems/{ref}:
+    get:
+      tags:
+      - classrooms
+      summary: Assignment Problem
+      operationId: assignment_problem_api_v1_assignments__assignment_id__problems__ref__get
+      parameters:
+      - name: assignment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Assignment Id
+      - name: ref
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ref
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/assignments/{assignment_id}/gradebook:
+    get:
+      tags:
+      - classrooms
+      summary: Gradebook
+      operationId: gradebook_api_v1_assignments__assignment_id__gradebook_get
+      parameters:
+      - name: assignment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Assignment Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Gradebook'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/assignments/{assignment_id}/gradebook.csv:
+    get:
+      tags:
+      - classrooms
+      summary: Gradebook Csv
+      operationId: gradebook_csv_api_v1_assignments__assignment_id__gradebook_csv_get
+      parameters:
+      - name: assignment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Assignment Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/assessments:
+    get:
+      tags:
+      - assessments
+      summary: List Assessments
+      operationId: list_assessments_api_v1_assessments_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/AssessmentOut'
+                type: array
+                title: Response List Assessments Api V1 Assessments Get
+    post:
+      tags:
+      - assessments
+      summary: Create Assessment
+      operationId: create_assessment_api_v1_assessments_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssessmentCreate'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/assessments/{assessment_id}:
+    get:
+      tags:
+      - assessments
+      summary: Get Assessment
+      operationId: get_assessment_api_v1_assessments__assessment_id__get
+      parameters:
+      - name: assessment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Assessment Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - assessments
+      summary: Update Assessment
+      operationId: update_assessment_api_v1_assessments__assessment_id__patch
+      parameters:
+      - name: assessment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Assessment Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssessmentUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - assessments
+      summary: Delete Assessment
+      operationId: delete_assessment_api_v1_assessments__assessment_id__delete
+      parameters:
+      - name: assessment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Assessment Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/assessments/{assessment_id}/invitations:
+    get:
+      tags:
+      - assessments
+      summary: List Invitations
+      operationId: list_invitations_api_v1_assessments__assessment_id__invitations_get
+      parameters:
+      - name: assessment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Assessment Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InvitationOut'
+                title: Response List Invitations Api V1 Assessments  Assessment Id  Invitations Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - assessments
+      summary: Invite
+      operationId: invite_api_v1_assessments__assessment_id__invitations_post
+      parameters:
+      - name: assessment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Assessment Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InviteResult'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/assessments/{assessment_id}/invitations/{invitation_id}/resend:
+    post:
+      tags:
+      - assessments
+      summary: Resend
+      operationId: resend_api_v1_assessments__assessment_id__invitations__invitation_id__resend_post
+      parameters:
+      - name: assessment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Assessment Id
+      - name: invitation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Invitation Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/assessments/{assessment_id}/invitations/{invitation_id}/revoke:
+    post:
+      tags:
+      - assessments
+      summary: Revoke
+      operationId: revoke_api_v1_assessments__assessment_id__invitations__invitation_id__revoke_post
+      parameters:
+      - name: assessment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Assessment Id
+      - name: invitation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Invitation Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/assessments/{assessment_id}/invitations/{invitation_id}/report:
+    get:
+      tags:
+      - assessments
+      summary: Report
+      operationId: report_api_v1_assessments__assessment_id__invitations__invitation_id__report_get
+      parameters:
+      - name: assessment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Assessment Id
+      - name: invitation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Invitation Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/candidate/session:
+    post:
+      tags:
+      - assessments
+      summary: Candidate Session
+      description: 'Open the invitation link: starts the timer the first time. The page then sends the
+
+        same token as ``X-CodeJudge-Candidate`` on every request.'
+      operationId: candidate_session_api_v1_candidate_session_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CandidateSessionIn'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CandidateView'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/candidate/assessment:
+    get:
+      tags:
+      - assessments
+      summary: Candidate Assessment
+      operationId: candidate_assessment_api_v1_candidate_assessment_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CandidateView'
+  /api/v1/candidate/events:
+    post:
+      tags:
+      - assessments
+      summary: Candidate Event
+      operationId: candidate_event_api_v1_candidate_events_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventIn'
+        required: true
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/candidate/finish:
+    post:
+      tags:
+      - assessments
+      summary: Candidate Finish
+      operationId: candidate_finish_api_v1_candidate_finish_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CandidateView'
+  /api/v1/plagiarism/runs:
+    post:
+      tags:
+      - plagiarism
+      summary: Start a similarity check
+      operationId: start_run_api_v1_plagiarism_runs_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlagiarismRunCreate'
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - plagiarism
+      summary: Similarity checks, newest first
+      operationId: list_runs_api_v1_plagiarism_runs_get
+      parameters:
+      - name: scope
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - problem
+            - contest
+            - assignment
+            type: string
+          - type: 'null'
+          title: Scope
+      - name: scope_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Scope Id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RunOut'
+                title: Response List Runs Api V1 Plagiarism Runs Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/plagiarism/runs/{run_id}:
+    get:
+      tags:
+      - plagiarism
+      summary: A check and its flagged pairs
+      operationId: get_run_api_v1_plagiarism_runs__run_id__get
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Run Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunDetail'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/plagiarism/pairs/{pair_id}:
+    get:
+      tags:
+      - plagiarism
+      summary: Both programs of a pair
+      operationId: get_pair_api_v1_plagiarism_pairs__pair_id__get
+      parameters:
+      - name: pair_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Pair Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairDetail'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/analytics/overview:
+    get:
+      tags:
+      - analytics
+      summary: Submissions, verdicts and problems
+      operationId: overview_api_v1_analytics_overview_get
+      parameters:
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 365
+          minimum: 1
+          default: 30
+          title: Days
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Overview'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/analytics/problems/{ref}:
+    get:
+      tags:
+      - analytics
+      summary: One problem's statistics
+      operationId: problem_api_v1_analytics_problems__ref__get
+      parameters:
+      - name: ref
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Ref
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 365
+          minimum: 1
+          default: 30
+          title: Days
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemStats'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/analytics/me:
+    get:
+      tags:
+      - analytics
+      summary: Your own progress
+      operationId: me_api_v1_analytics_me_get
+      parameters:
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 365
+          minimum: 1
+          default: 30
+          title: Days
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProgress'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/analytics/users/{user_id}:
+    get:
+      tags:
+      - analytics
+      summary: A user's progress
+      operationId: user_api_v1_analytics_users__user_id__get
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      - name: days
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 365
+          minimum: 1
+          default: 30
+          title: Days
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProgress'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/hints/status:
+    get:
+      tags:
+      - hints
+      summary: Whether a hint can be asked for
+      operationId: hint_status_api_v1_hints_status_get
+      parameters:
+      - name: problem
+        in: query
+        required: true
+        schema:
+          type: string
+          maxLength: 64
+          title: Problem
+      - name: context
+        in: query
+        required: false
+        schema:
+          enum:
+          - practice
+          - assignment
+          - contest
+          - assessment
+          type: string
+          default: practice
+          title: Context
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HintStatus'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/hints:
+    post:
+      tags:
+      - hints
+      summary: Ask the AI tutor for a hint
+      operationId: ask_api_v1_hints_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HintRequestIn'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HintOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/org/public:
+    get:
+      tags:
+      - org
+      summary: Settings the sign-in page needs
+      operationId: public_settings_api_v1_org_public_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicSettings'
+  /api/v1/org/settings:
+    get:
+      tags:
+      - org
+      summary: Organisation settings
+      operationId: get_settings_api_v1_org_settings_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSettings'
+    patch:
+      tags:
+      - org
+      summary: Change organisation settings
+      operationId: update_settings_api_v1_org_settings_patch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettingsUpdate'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSettings'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/auth/signup:
+    post:
+      tags:
+      - org
+      summary: Create a student account (when sign-up is open) and sign in
+      operationId: signup_api_v1_auth_signup_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignInOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/audit:
+    get:
+      tags:
+      - audit
+      summary: Append-only audit log
+      operationId: list_audit_api_v1_audit_get
+      parameters:
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: action
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Action
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_AuditOut_'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /healthz:
+    get:
+      tags:
+      - system
+      summary: Liveness
+      operationId: healthz_healthz_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+                title: Response Healthz Healthz Get
+  /health:
+    get:
+      tags:
+      - system
+      summary: Liveness (alias of /healthz)
+      operationId: health_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+                title: Response Health Health Get
+  /readyz:
+    get:
+      tags:
+      - system
+      summary: 'Readiness: Postgres reachable (Redis reported too)'
+      operationId: readyz_readyz_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Readyz Readyz Get
+  /api/v1/system:
+    get:
+      tags:
+      - system
+      - system
+      summary: System
+      operationId: system_api_v1_system_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemInfo'
+components:
+  schemas:
+    Ack:
+      properties:
+        ok:
+          type: boolean
+          title: Ok
+          default: true
+        message:
+          type: string
+          title: Message
+          default: ''
+      type: object
+      title: Ack
+    AdminSettings:
+      properties:
+        site_name:
+          type: string
+          title: Site Name
+        allow_signup:
+          type: boolean
+          title: Allow Signup
+        default_language:
+          type: string
+          title: Default Language
+        ai_enabled:
+          type: boolean
+          title: Ai Enabled
+        ai_base_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ai Base Url
+        ai_model:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ai Model
+        ai_has_key:
+          type: boolean
+          title: Ai Has Key
+        ai_max_hints_per_problem:
+          type: integer
+          title: Ai Max Hints Per Problem
+        ai_allowed_in_practice:
+          type: boolean
+          title: Ai Allowed In Practice
+        ai_allowed_in_assignments:
+          type: boolean
+          title: Ai Allowed In Assignments
+        ai_allowed_in_contests:
+          type: boolean
+          title: Ai Allowed In Contests
+          default: false
+        ai_allowed_in_assessments:
+          type: boolean
+          title: Ai Allowed In Assessments
+          default: false
+      type: object
+      required:
+      - site_name
+      - allow_signup
+      - default_language
+      - ai_enabled
+      - ai_base_url
+      - ai_model
+      - ai_has_key
+      - ai_max_hints_per_problem
+      - ai_allowed_in_practice
+      - ai_allowed_in_assignments
+      title: AdminSettings
+    Announcement:
+      properties:
+        answer:
+          type: string
+          maxLength: 4000
+          minLength: 1
+          title: Answer
+        public:
+          type: boolean
+          title: Public
+          default: false
+      type: object
+      required:
+      - answer
+      title: Announcement
+      description: 'Staff: an answer to a question, or (without a question id) a public announcement.'
+    AssessmentCreate:
+      properties:
+        title:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Title
+        instructions_md:
+          type: string
+          maxLength: 50000
+          title: Instructions Md
+          default: ''
+        duration_minutes:
+          type: integer
+          maximum: 1440.0
+          minimum: 1.0
+          title: Duration Minutes
+          default: 60
+        opens_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Opens At
+        closes_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Closes At
+        problems:
+          items:
+            $ref: '#/components/schemas/AssessmentProblemIn'
+          type: array
+          maxItems: 20
+          minItems: 1
+          title: Problems
+      type: object
+      required:
+      - title
+      - problems
+      title: AssessmentCreate
+    AssessmentOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        title:
+          type: string
+          title: Title
+        instructions_md:
+          type: string
+          title: Instructions Md
+        duration_minutes:
+          type: integer
+          title: Duration Minutes
+        opens_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Opens At
+        closes_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Closes At
+        total_points:
+          type: number
+          title: Total Points
+        problems:
+          items:
+            $ref: '#/components/schemas/AssessmentProblemOut'
+          type: array
+          title: Problems
+        invitations:
+          $ref: '#/components/schemas/InvitationCounts'
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - title
+      - instructions_md
+      - duration_minutes
+      - opens_at
+      - closes_at
+      - total_points
+      - problems
+      - invitations
+      - created_at
+      title: AssessmentOut
+    AssessmentProblemIn:
+      properties:
+        problem:
+          type: string
+          title: Problem
+          description: Problem id or slug
+        points:
+          type: number
+          maximum: 10000.0
+          minimum: 0.0
+          title: Points
+          default: 100.0
+      type: object
+      required:
+      - problem
+      title: AssessmentProblemIn
+    AssessmentProblemOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        slug:
+          type: string
+          title: Slug
+        title:
+          type: string
+          title: Title
+        difficulty:
+          type: string
+          title: Difficulty
+        points:
+          type: number
+          title: Points
+      type: object
+      required:
+      - id
+      - slug
+      - title
+      - difficulty
+      - points
+      title: AssessmentProblemOut
+    AssessmentUpdate:
+      properties:
+        title:
+          anyOf:
+          - type: string
+            maxLength: 200
+            minLength: 1
+          - type: 'null'
+          title: Title
+        instructions_md:
+          anyOf:
+          - type: string
+            maxLength: 50000
+          - type: 'null'
+          title: Instructions Md
+        duration_minutes:
+          anyOf:
+          - type: integer
+            maximum: 1440.0
+            minimum: 1.0
+          - type: 'null'
+          title: Duration Minutes
+        opens_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Opens At
+        closes_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Closes At
+        problems:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/AssessmentProblemIn'
+            type: array
+            maxItems: 20
+            minItems: 1
+          - type: 'null'
+          title: Problems
+      type: object
+      title: AssessmentUpdate
+    AssignmentCreate:
+      properties:
+        title:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Title
+        description_md:
+          type: string
+          maxLength: 100000
+          title: Description Md
+          default: ''
+        opens_at:
+          type: string
+          format: date-time
+          title: Opens At
+        due_at:
+          type: string
+          format: date-time
+          title: Due At
+        late_policy:
+          type: string
+          enum:
+          - accept
+          - penalty
+          - refuse
+          title: Late Policy
+          default: penalty
+        penalty_percent:
+          type: integer
+          maximum: 100.0
+          minimum: 0.0
+          title: Penalty Percent
+          default: 20
+        problems:
+          items:
+            $ref: '#/components/schemas/AssignmentProblemIn'
+          type: array
+          maxItems: 50
+          minItems: 1
+          title: Problems
+      type: object
+      required:
+      - title
+      - opens_at
+      - due_at
+      - problems
+      title: AssignmentCreate
+    AssignmentOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        class_id:
+          type: string
+          format: uuid
+          title: Class Id
+        title:
+          type: string
+          title: Title
+        description_md:
+          type: string
+          title: Description Md
+        opens_at:
+          type: string
+          format: date-time
+          title: Opens At
+        due_at:
+          type: string
+          format: date-time
+          title: Due At
+        my_due_at:
+          type: string
+          format: date-time
+          title: My Due At
+        late_policy:
+          type: string
+          enum:
+          - accept
+          - penalty
+          - refuse
+          title: Late Policy
+        penalty_percent:
+          type: integer
+          title: Penalty Percent
+        status:
+          type: string
+          enum:
+          - upcoming
+          - open
+          - late
+          - closed
+          title: Status
+        total_points:
+          type: number
+          title: Total Points
+        my_total:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: My Total
+        problems:
+          items:
+            $ref: '#/components/schemas/AssignmentProblemOut'
+          type: array
+          title: Problems
+      type: object
+      required:
+      - id
+      - class_id
+      - title
+      - description_md
+      - opens_at
+      - due_at
+      - my_due_at
+      - late_policy
+      - penalty_percent
+      - status
+      - total_points
+      - problems
+      title: AssignmentOut
+    AssignmentProblemIn:
+      properties:
+        problem:
+          type: string
+          title: Problem
+          description: Problem id or slug
+        points:
+          type: number
+          maximum: 10000.0
+          minimum: 0.0
+          title: Points
+          default: 100.0
+      type: object
+      required:
+      - problem
+      title: AssignmentProblemIn
+    AssignmentProblemOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        slug:
+          type: string
+          title: Slug
+        title:
+          type: string
+          title: Title
+        difficulty:
+          type: string
+          title: Difficulty
+        points:
+          type: number
+          title: Points
+        my_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: My Score
+        my_verdict:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: My Verdict
+      type: object
+      required:
+      - id
+      - slug
+      - title
+      - difficulty
+      - points
+      title: AssignmentProblemOut
+    AssignmentUpdate:
+      properties:
+        title:
+          anyOf:
+          - type: string
+            maxLength: 200
+            minLength: 1
+          - type: 'null'
+          title: Title
+        description_md:
+          anyOf:
+          - type: string
+            maxLength: 100000
+          - type: 'null'
+          title: Description Md
+        opens_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Opens At
+        due_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Due At
+        late_policy:
+          anyOf:
+          - type: string
+            enum:
+            - accept
+            - penalty
+            - refuse
+          - type: 'null'
+          title: Late Policy
+        penalty_percent:
+          anyOf:
+          - type: integer
+            maximum: 100.0
+            minimum: 0.0
+          - type: 'null'
+          title: Penalty Percent
+        problems:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/AssignmentProblemIn'
+            type: array
+            maxItems: 50
+            minItems: 1
+          - type: 'null'
+          title: Problems
+      type: object
+      title: AssignmentUpdate
+    AuditOut:
+      properties:
+        id:
+          type: integer
+          title: Id
+        at:
+          type: string
+          format: date-time
+          title: At
+        actor_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Actor Id
+        actor_email:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Actor Email
+        action:
+          type: string
+          title: Action
+        target_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Target Type
+        target_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Target Id
+        details:
+          additionalProperties: true
+          type: object
+          title: Details
+        ip:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ip
+      type: object
+      required:
+      - id
+      - at
+      - actor_id
+      - actor_email
+      - action
+      - target_type
+      - target_id
+      - details
+      - ip
+      title: AuditOut
+    Body_import_problem_api_v1_problems_import_post:
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+        slug:
+          anyOf:
+          - type: string
+            pattern: ^[a-z0-9][a-z0-9\-]{1,62}[a-z0-9]$
+          - type: 'null'
+          title: Slug
+      type: object
+      required:
+      - file
+      title: Body_import_problem_api_v1_problems_import_post
+    Body_upload_package_api_v1_problems__problem_id__package_post:
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+      type: object
+      required:
+      - file
+      title: Body_upload_package_api_v1_problems__problem_id__package_post
+    CandidateProblem:
+      properties:
+        points:
+          type: number
+          title: Points
+        best_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Best Score
+        best_verdict:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Best Verdict
+        problem:
+          $ref: '#/components/schemas/ProblemOut'
+      type: object
+      required:
+      - points
+      - best_score
+      - best_verdict
+      - problem
+      title: CandidateProblem
+    CandidateSessionIn:
+      properties:
+        token:
+          type: string
+          maxLength: 200
+          minLength: 20
+          title: Token
+      type: object
+      required:
+      - token
+      title: CandidateSessionIn
+    CandidateView:
+      properties:
+        invitation_id:
+          type: string
+          format: uuid
+          title: Invitation Id
+        name:
+          type: string
+          title: Name
+        title:
+          type: string
+          title: Title
+        instructions_md:
+          type: string
+          title: Instructions Md
+        status:
+          type: string
+          enum:
+          - invited
+          - started
+          - submitted
+          - expired
+          - revoked
+          title: Status
+        started_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Started At
+        deadline_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Deadline At
+        now:
+          type: string
+          format: date-time
+          title: Now
+        seconds_left:
+          type: integer
+          title: Seconds Left
+        total_points:
+          type: number
+          title: Total Points
+        problems:
+          items:
+            $ref: '#/components/schemas/CandidateProblem'
+          type: array
+          title: Problems
+      type: object
+      required:
+      - invitation_id
+      - name
+      - title
+      - instructions_md
+      - status
+      - started_at
+      - deadline_at
+      - now
+      - seconds_left
+      - total_points
+      - problems
+      title: CandidateView
+      description: Everything a candidate's page needs, and nothing about anyone else.
+    CellOut:
+      properties:
+        label:
+          type: string
+          title: Label
+        solved:
+          type: boolean
+          title: Solved
+        attempts:
+          type: integer
+          title: Attempts
+        pending:
+          type: integer
+          title: Pending
+        minute:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Minute
+        score:
+          type: number
+          title: Score
+        first:
+          type: boolean
+          title: First
+      type: object
+      required:
+      - label
+      - solved
+      - attempts
+      - pending
+      - minute
+      - score
+      - first
+      title: CellOut
+    CheckerSpec:
+      properties:
+        kind:
+          type: string
+          enum:
+          - exact
+          - tokens
+          - float
+          - custom
+          title: Kind
+          default: tokens
+        float_abs:
+          type: number
+          minimum: 0.0
+          title: Float Abs
+          default: 1.0e-06
+        float_rel:
+          type: number
+          minimum: 0.0
+          title: Float Rel
+          default: 1.0e-06
+        case_sensitive:
+          type: boolean
+          title: Case Sensitive
+          default: true
+        language:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Language
+        path:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Path
+        protocol:
+          type: string
+          enum:
+          - kattis
+          - testlib
+          title: Protocol
+          default: kattis
+      additionalProperties: false
+      type: object
+      title: CheckerSpec
+      description: 'How output is compared. ``tokens`` ignores whitespace differences (the default);
+
+        ``float`` also accepts numbers within the tolerance; ``custom`` runs the problem''s
+
+        checker program (testlib style: input, expected, output; exit 0 accepts).'
+    ClarificationIn:
+      properties:
+        question:
+          type: string
+          maxLength: 4000
+          minLength: 1
+          title: Question
+        problem_label:
+          anyOf:
+          - type: string
+            pattern: ^[A-Z][0-9]?$
+          - type: 'null'
+          title: Problem Label
+      type: object
+      required:
+      - question
+      title: ClarificationIn
+    ClarificationOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        problem_label:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Problem Label
+        question:
+          type: string
+          title: Question
+        answer:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Answer
+        public:
+          type: boolean
+          title: Public
+        mine:
+          type: boolean
+          title: Mine
+        asked_by_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Asked By Name
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        answered_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Answered At
+      type: object
+      required:
+      - id
+      - problem_label
+      - question
+      - answer
+      - public
+      - mine
+      - created_at
+      - answered_at
+      title: ClarificationOut
+    ClassCreate:
+      properties:
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Name
+        description:
+          type: string
+          maxLength: 5000
+          title: Description
+          default: ''
+      type: object
+      required:
+      - name
+      title: ClassCreate
+    ClassOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        description:
+          type: string
+          title: Description
+        archived:
+          type: boolean
+          title: Archived
+        join_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Join Code
+        my_role:
+          anyOf:
+          - type: string
+            enum:
+            - teacher
+            - student
+          - type: 'null'
+          title: My Role
+        students:
+          type: integer
+          title: Students
+          default: 0
+        teachers:
+          type: integer
+          title: Teachers
+          default: 0
+        assignments:
+          type: integer
+          title: Assignments
+          default: 0
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - name
+      - description
+      - archived
+      - created_at
+      title: ClassOut
+    ClassUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 200
+            minLength: 1
+          - type: 'null'
+          title: Name
+        description:
+          anyOf:
+          - type: string
+            maxLength: 5000
+          - type: 'null'
+          title: Description
+        archived:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Archived
+      type: object
+      title: ClassUpdate
+    ContestCreate:
+      properties:
+        title:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Title
+        description_md:
+          type: string
+          maxLength: 50000
+          title: Description Md
+          default: ''
+        format:
+          type: string
+          enum:
+          - icpc
+          - ioi
+          title: Format
+          default: icpc
+        starts_at:
+          type: string
+          format: date-time
+          title: Starts At
+        ends_at:
+          type: string
+          format: date-time
+          title: Ends At
+        freeze_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Freeze At
+        visibility:
+          type: string
+          enum:
+          - public
+          - private
+          title: Visibility
+          default: public
+        registration:
+          type: string
+          enum:
+          - open
+          - invite
+          title: Registration
+          default: open
+        penalty_minutes:
+          type: integer
+          maximum: 240.0
+          minimum: 0.0
+          title: Penalty Minutes
+          default: 20
+        slug:
+          type: string
+          pattern: ^[a-z0-9][a-z0-9\-]{1,62}[a-z0-9]$
+          title: Slug
+      type: object
+      required:
+      - title
+      - starts_at
+      - ends_at
+      - slug
+      title: ContestCreate
+    ContestOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        slug:
+          type: string
+          title: Slug
+        title:
+          type: string
+          title: Title
+        format:
+          type: string
+          enum:
+          - icpc
+          - ioi
+          title: Format
+        starts_at:
+          type: string
+          format: date-time
+          title: Starts At
+        ends_at:
+          type: string
+          format: date-time
+          title: Ends At
+        freeze_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Freeze At
+        visibility:
+          type: string
+          title: Visibility
+        registration:
+          type: string
+          title: Registration
+        phase:
+          type: string
+          enum:
+          - upcoming
+          - running
+          - ended
+          title: Phase
+        participants:
+          type: integer
+          title: Participants
+        registered:
+          type: boolean
+          title: Registered
+          default: false
+        description_md:
+          type: string
+          title: Description Md
+        penalty_minutes:
+          type: integer
+          title: Penalty Minutes
+        unfrozen:
+          type: boolean
+          title: Unfrozen
+        problems:
+          items:
+            $ref: '#/components/schemas/ContestProblemOut'
+          type: array
+          title: Problems
+        join_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Join Code
+      type: object
+      required:
+      - id
+      - slug
+      - title
+      - format
+      - starts_at
+      - ends_at
+      - freeze_at
+      - visibility
+      - registration
+      - phase
+      - participants
+      - description_md
+      - penalty_minutes
+      - unfrozen
+      - problems
+      title: ContestOut
+    ContestProblemIn:
+      properties:
+        problem:
+          type: string
+          title: Problem
+          description: Problem id or slug
+        label:
+          anyOf:
+          - type: string
+            pattern: ^[A-Z][0-9]?$
+          - type: 'null'
+          title: Label
+        points:
+          type: number
+          maximum: 10000.0
+          exclusiveMinimum: 0.0
+          title: Points
+          default: 100.0
+      type: object
+      required:
+      - problem
+      title: ContestProblemIn
+    ContestProblemOut:
+      properties:
+        label:
+          type: string
+          title: Label
+        problem_id:
+          type: string
+          format: uuid
+          title: Problem Id
+        slug:
+          type: string
+          title: Slug
+        title:
+          type: string
+          title: Title
+        points:
+          type: number
+          title: Points
+        position:
+          type: integer
+          title: Position
+      type: object
+      required:
+      - label
+      - problem_id
+      - slug
+      - title
+      - points
+      - position
+      title: ContestProblemOut
+    ContestSubmissionPage:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/SubmissionOut'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: ContestSubmissionPage
+    ContestSummary:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        slug:
+          type: string
+          title: Slug
+        title:
+          type: string
+          title: Title
+        format:
+          type: string
+          enum:
+          - icpc
+          - ioi
+          title: Format
+        starts_at:
+          type: string
+          format: date-time
+          title: Starts At
+        ends_at:
+          type: string
+          format: date-time
+          title: Ends At
+        freeze_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Freeze At
+        visibility:
+          type: string
+          title: Visibility
+        registration:
+          type: string
+          title: Registration
+        phase:
+          type: string
+          enum:
+          - upcoming
+          - running
+          - ended
+          title: Phase
+        participants:
+          type: integer
+          title: Participants
+        registered:
+          type: boolean
+          title: Registered
+          default: false
+      type: object
+      required:
+      - id
+      - slug
+      - title
+      - format
+      - starts_at
+      - ends_at
+      - freeze_at
+      - visibility
+      - registration
+      - phase
+      - participants
+      title: ContestSummary
+    ContestUpdate:
+      properties:
+        title:
+          anyOf:
+          - type: string
+            maxLength: 200
+            minLength: 1
+          - type: 'null'
+          title: Title
+        description_md:
+          anyOf:
+          - type: string
+            maxLength: 50000
+          - type: 'null'
+          title: Description Md
+        format:
+          anyOf:
+          - type: string
+            enum:
+            - icpc
+            - ioi
+          - type: 'null'
+          title: Format
+        starts_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Starts At
+        ends_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Ends At
+        freeze_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Freeze At
+        visibility:
+          anyOf:
+          - type: string
+            enum:
+            - public
+            - private
+          - type: 'null'
+          title: Visibility
+        registration:
+          anyOf:
+          - type: string
+            enum:
+            - open
+            - invite
+          - type: 'null'
+          title: Registration
+        penalty_minutes:
+          anyOf:
+          - type: integer
+            maximum: 240.0
+            minimum: 0.0
+          - type: 'null'
+          title: Penalty Minutes
+      type: object
+      title: ContestUpdate
+    DayPoint:
+      properties:
+        day:
+          type: string
+          format: date
+          title: Day
+        submissions:
+          type: integer
+          title: Submissions
+        accepted:
+          type: integer
+          title: Accepted
+      type: object
+      required:
+      - day
+      - submissions
+      - accepted
+      title: DayPoint
+    DifficultyRow:
+      properties:
+        difficulty:
+          type: string
+          title: Difficulty
+        submissions:
+          type: integer
+          title: Submissions
+        accepted:
+          type: integer
+          title: Accepted
+        acceptance:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Acceptance
+      type: object
+      required:
+      - difficulty
+      - submissions
+      - accepted
+      - acceptance
+      title: DifficultyRow
+    EventIn:
+      properties:
+        kind:
+          type: string
+          enum:
+          - paste
+          - tab_hidden
+          - tab_visible
+          title: Kind
+        detail:
+          additionalProperties: true
+          type: object
+          title: Detail
+      type: object
+      required:
+      - kind
+      title: EventIn
+    ExtensionIn:
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          title: User Id
+        due_at:
+          type: string
+          format: date-time
+          title: Due At
+      type: object
+      required:
+      - user_id
+      - due_at
+      title: ExtensionIn
+    GradeCell:
+      properties:
+        problem_id:
+          type: string
+          format: uuid
+          title: Problem Id
+        score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Score
+        late:
+          type: boolean
+          title: Late
+          default: false
+        attempts:
+          type: integer
+          title: Attempts
+          default: 0
+      type: object
+      required:
+      - problem_id
+      - score
+      title: GradeCell
+    GradeRow:
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          title: User Id
+        name:
+          type: string
+          title: Name
+        email:
+          type: string
+          title: Email
+        total:
+          type: number
+          title: Total
+        cells:
+          items:
+            $ref: '#/components/schemas/GradeCell'
+          type: array
+          title: Cells
+      type: object
+      required:
+      - user_id
+      - name
+      - email
+      - total
+      - cells
+      title: GradeRow
+    Gradebook:
+      properties:
+        assignment_id:
+          type: string
+          format: uuid
+          title: Assignment Id
+        title:
+          type: string
+          title: Title
+        problems:
+          items:
+            $ref: '#/components/schemas/AssignmentProblemOut'
+          type: array
+          title: Problems
+        total_points:
+          type: number
+          title: Total Points
+        rows:
+          items:
+            $ref: '#/components/schemas/GradeRow'
+          type: array
+          title: Rows
+      type: object
+      required:
+      - assignment_id
+      - title
+      - problems
+      - total_points
+      - rows
+      title: Gradebook
+    GroupSpec:
+      properties:
+        name:
+          type: string
+          pattern: ^[A-Za-z0-9_\-]{1,64}$
+          title: Name
+        points:
+          type: number
+          minimum: 0.0
+          title: Points
+        stop_on_failure:
+          type: boolean
+          title: Stop On Failure
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - points
+      title: GroupSpec
+      description: 'A subtask. Its points are earned when every test in it passes (IOI style); a
+
+        problem with one group of 100 points is plain pass/fail.'
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    HintOut:
+      properties:
+        hint:
+          type: string
+          title: Hint
+        model:
+          type: string
+          title: Model
+        used:
+          type: integer
+          title: Used
+        limit:
+          type: integer
+          title: Limit
+        remaining:
+          type: integer
+          title: Remaining
+      type: object
+      required:
+      - hint
+      - model
+      - used
+      - limit
+      - remaining
+      title: HintOut
+    HintRequestIn:
+      properties:
+        problem:
+          type: string
+          title: Problem
+          description: Problem id or slug
+        language:
+          type: string
+          maxLength: 32
+          title: Language
+        source:
+          type: string
+          maxLength: 200000
+          title: Source
+          default: ''
+        submission_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Submission Id
+          description: The submission to explain; your latest one for the problem if omitted
+        question:
+          anyOf:
+          - type: string
+            maxLength: 1000
+          - type: 'null'
+          title: Question
+        context:
+          type: string
+          enum:
+          - practice
+          - assignment
+          - contest
+          - assessment
+          title: Context
+          default: practice
+        context_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Context Id
+      type: object
+      required:
+      - problem
+      - language
+      title: HintRequestIn
+    HintStatus:
+      properties:
+        available:
+          type: boolean
+          title: Available
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+        used:
+          type: integer
+          title: Used
+          default: 0
+        limit:
+          type: integer
+          title: Limit
+          default: 0
+        remaining:
+          type: integer
+          title: Remaining
+          default: 0
+      type: object
+      required:
+      - available
+      title: HintStatus
+      description: Whether hints can be asked for here, and why not when they cannot.
+    ImportResult:
+      properties:
+        problem:
+          $ref: '#/components/schemas/ProblemSummary'
+        tests:
+          type: integer
+          title: Tests
+        groups:
+          type: integer
+          title: Groups
+        references:
+          type: integer
+          title: References
+        warnings:
+          items:
+            type: string
+          type: array
+          title: Warnings
+      type: object
+      required:
+      - problem
+      - tests
+      - groups
+      - references
+      - warnings
+      title: ImportResult
+    InvitationCounts:
+      properties:
+        invited:
+          type: integer
+          title: Invited
+          default: 0
+        started:
+          type: integer
+          title: Started
+          default: 0
+        submitted:
+          type: integer
+          title: Submitted
+          default: 0
+        expired:
+          type: integer
+          title: Expired
+          default: 0
+        revoked:
+          type: integer
+          title: Revoked
+          default: 0
+      type: object
+      title: InvitationCounts
+    InvitationOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        assessment_id:
+          type: string
+          format: uuid
+          title: Assessment Id
+        email:
+          type: string
+          title: Email
+        name:
+          type: string
+          title: Name
+        status:
+          type: string
+          enum:
+          - invited
+          - started
+          - submitted
+          - expired
+          - revoked
+          title: Status
+        sent_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Sent At
+        started_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Started At
+        deadline_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Deadline At
+        submitted_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Submitted At
+        score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Score
+        signals:
+          type: integer
+          title: Signals
+          default: 0
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - assessment_id
+      - email
+      - name
+      - status
+      - sent_at
+      - started_at
+      - deadline_at
+      - submitted_at
+      - created_at
+      title: InvitationOut
+    InviteIn:
+      properties:
+        email:
+          type: string
+          maxLength: 320
+          pattern: ^[^@\s]+@[^@\s]+\.[^@\s]+$
+          title: Email
+        name:
+          type: string
+          maxLength: 200
+          title: Name
+          default: ''
+      type: object
+      required:
+      - email
+      title: InviteIn
+    InviteRequest:
+      properties:
+        candidates:
+          items:
+            $ref: '#/components/schemas/InviteIn'
+          type: array
+          maxItems: 200
+          minItems: 1
+          title: Candidates
+      type: object
+      required:
+      - candidates
+      title: InviteRequest
+    InviteResult:
+      properties:
+        invitations:
+          items:
+            $ref: '#/components/schemas/InvitationOut'
+          type: array
+          title: Invitations
+        failed:
+          items:
+            type: string
+          type: array
+          title: Failed
+      type: object
+      required:
+      - invitations
+      title: InviteResult
+    JoinRequest:
+      properties:
+        code:
+          type: string
+          maxLength: 16
+          minLength: 4
+          title: Code
+      type: object
+      required:
+      - code
+      title: JoinRequest
+    JudgeInfo:
+      properties:
+        waiting:
+          type: integer
+          title: Waiting
+        in_progress:
+          type: integer
+          title: In Progress
+        workers:
+          type: integer
+          title: Workers
+      type: object
+      required:
+      - waiting
+      - in_progress
+      - workers
+      title: JudgeInfo
+    Judged:
+      properties:
+        queued:
+          type: integer
+          title: Queued
+      type: object
+      required:
+      - queued
+      title: Judged
+    LanguageOut:
+      properties:
+        id:
+          type: string
+          title: Id
+        name:
+          type: string
+          title: Name
+        monaco:
+          type: string
+          title: Monaco
+        template:
+          type: string
+          title: Template
+        time_limit_ms:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Time Limit Ms
+      type: object
+      required:
+      - id
+      - name
+      - monaco
+      - template
+      title: LanguageOut
+    LanguageRow:
+      properties:
+        language:
+          type: string
+          title: Language
+        submissions:
+          type: integer
+          title: Submissions
+        accepted:
+          type: integer
+          title: Accepted
+      type: object
+      required:
+      - language
+      - submissions
+      - accepted
+      title: LanguageRow
+    LoginRequest:
+      properties:
+        email:
+          type: string
+          maxLength: 320
+          pattern: ^[^@\s]+@[^@\s]+\.[^@\s]+$
+          title: Email
+        password:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Password
+      type: object
+      required:
+      - email
+      - password
+      title: LoginRequest
+    MemberAdd:
+      properties:
+        email:
+          type: string
+          maxLength: 320
+          minLength: 3
+          title: Email
+        role:
+          type: string
+          enum:
+          - teacher
+          - student
+          title: Role
+          default: student
+      type: object
+      required:
+      - email
+      title: MemberAdd
+    MemberOut:
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          title: User Id
+        name:
+          type: string
+          title: Name
+        email:
+          type: string
+          title: Email
+        role:
+          type: string
+          enum:
+          - teacher
+          - student
+          title: Role
+        joined_at:
+          type: string
+          format: date-time
+          title: Joined At
+      type: object
+      required:
+      - user_id
+      - name
+      - email
+      - role
+      - joined_at
+      title: MemberOut
+    MyStatus:
+      properties:
+        registered:
+          type: boolean
+          title: Registered
+        phase:
+          type: string
+          enum:
+          - upcoming
+          - running
+          - ended
+          title: Phase
+        row:
+          anyOf:
+          - $ref: '#/components/schemas/RowOut'
+          - type: 'null'
+      type: object
+      required:
+      - registered
+      - phase
+      - row
+      title: MyStatus
+    Overview:
+      properties:
+        days:
+          type: integer
+          title: Days
+        submissions:
+          type: integer
+          title: Submissions
+        accepted:
+          type: integer
+          title: Accepted
+        acceptance:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Acceptance
+        active_users:
+          type: integer
+          title: Active Users
+        daily:
+          items:
+            $ref: '#/components/schemas/DayPoint'
+          type: array
+          title: Daily
+        verdicts:
+          $ref: '#/components/schemas/VerdictMix'
+        top_problems:
+          items:
+            $ref: '#/components/schemas/ProblemRank'
+          type: array
+          title: Top Problems
+        by_difficulty:
+          items:
+            $ref: '#/components/schemas/DifficultyRow'
+          type: array
+          title: By Difficulty
+        languages:
+          items:
+            $ref: '#/components/schemas/LanguageRow'
+          type: array
+          title: Languages
+      type: object
+      required:
+      - days
+      - submissions
+      - accepted
+      - acceptance
+      - active_users
+      - daily
+      - verdicts
+      - top_problems
+      - by_difficulty
+      - languages
+      title: Overview
+    Page_AuditOut_:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/AuditOut'
+          type: array
+          title: Items
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+          description: Pass as ?cursor= to fetch the next page
+      type: object
+      required:
+      - items
+      title: Page[AuditOut]
+    PairDetail:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        problem_id:
+          type: string
+          format: uuid
+          title: Problem Id
+        problem_slug:
+          type: string
+          title: Problem Slug
+        problem_title:
+          type: string
+          title: Problem Title
+        language:
+          type: string
+          title: Language
+        similarity:
+          type: number
+          title: Similarity
+        a:
+          $ref: '#/components/schemas/Side'
+        b:
+          $ref: '#/components/schemas/Side'
+        source_a:
+          type: string
+          title: Source A
+        source_b:
+          type: string
+          title: Source B
+      type: object
+      required:
+      - id
+      - problem_id
+      - problem_slug
+      - problem_title
+      - language
+      - similarity
+      - a
+      - b
+      - source_a
+      - source_b
+      title: PairDetail
+    PairOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        problem_id:
+          type: string
+          format: uuid
+          title: Problem Id
+        problem_slug:
+          type: string
+          title: Problem Slug
+        problem_title:
+          type: string
+          title: Problem Title
+        language:
+          type: string
+          title: Language
+        similarity:
+          type: number
+          title: Similarity
+        a:
+          $ref: '#/components/schemas/Side'
+        b:
+          $ref: '#/components/schemas/Side'
+      type: object
+      required:
+      - id
+      - problem_id
+      - problem_slug
+      - problem_title
+      - language
+      - similarity
+      - a
+      - b
+      title: PairOut
+    PasswordChange:
+      properties:
+        current_password:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Current Password
+        new_password:
+          type: string
+          maxLength: 256
+          minLength: 10
+          title: New Password
+      type: object
+      required:
+      - current_password
+      - new_password
+      title: PasswordChange
+    PlagiarismRunCreate:
+      properties:
+        scope:
+          type: string
+          enum:
+          - problem
+          - contest
+          - assignment
+          title: Scope
+        scope_id:
+          type: string
+          maxLength: 64
+          title: Scope Id
+          description: Problem id or slug, contest id or assignment id
+        threshold:
+          type: number
+          maximum: 1.0
+          minimum: 0.1
+          title: Threshold
+          default: 0.5
+      type: object
+      required:
+      - scope
+      - scope_id
+      title: PlagiarismRunCreate
+    ProblemAdmin:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        slug:
+          type: string
+          title: Slug
+        title:
+          type: string
+          title: Title
+        difficulty:
+          type: string
+          enum:
+          - easy
+          - medium
+          - hard
+          title: Difficulty
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+        status:
+          type: string
+          enum:
+          - draft
+          - published
+          title: Status
+        visibility:
+          type: string
+          enum:
+          - public
+          - private
+          title: Visibility
+        submissions_count:
+          type: integer
+          title: Submissions Count
+        accepted_count:
+          type: integer
+          title: Accepted Count
+        solvers_count:
+          type: integer
+          title: Solvers Count
+        acceptance:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Acceptance
+          description: Accepted submissions over judged ones
+        mine:
+          anyOf:
+          - type: string
+            enum:
+            - solved
+            - attempted
+          - type: 'null'
+          title: Mine
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+        statement_md:
+          type: string
+          title: Statement Md
+        time_limit_ms:
+          type: integer
+          title: Time Limit Ms
+        memory_limit_mb:
+          type: integer
+          title: Memory Limit Mb
+        output_limit_mb:
+          type: integer
+          title: Output Limit Mb
+        checker:
+          type: string
+          enum:
+          - exact
+          - tokens
+          - float
+          - custom
+          title: Checker
+        max_score:
+          type: number
+          title: Max Score
+        groups:
+          items:
+            $ref: '#/components/schemas/GroupSpec'
+          type: array
+          title: Groups
+        samples:
+          items:
+            $ref: '#/components/schemas/Sample'
+          type: array
+          title: Samples
+        languages:
+          items:
+            $ref: '#/components/schemas/LanguageOut'
+          type: array
+          title: Languages
+        source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source
+        license:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: License
+        version:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Version
+        checker_spec:
+          $ref: '#/components/schemas/CheckerSpec'
+        versions:
+          items:
+            $ref: '#/components/schemas/VersionOut'
+          type: array
+          title: Versions
+        references:
+          items:
+            $ref: '#/components/schemas/ReferenceOut'
+          type: array
+          title: References
+        publishable:
+          type: boolean
+          title: Publishable
+        publish_blockers:
+          items:
+            type: string
+          type: array
+          title: Publish Blockers
+      type: object
+      required:
+      - id
+      - slug
+      - title
+      - difficulty
+      - tags
+      - status
+      - visibility
+      - submissions_count
+      - accepted_count
+      - solvers_count
+      - updated_at
+      - statement_md
+      - time_limit_ms
+      - memory_limit_mb
+      - output_limit_mb
+      - checker
+      - max_score
+      - groups
+      - samples
+      - languages
+      - source
+      - license
+      - version
+      - checker_spec
+      - versions
+      - references
+      - publishable
+      - publish_blockers
+      title: ProblemAdmin
+      description: What staff see in the problem editor.
+    ProblemCreate:
+      properties:
+        title:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Title
+        statement_md:
+          type: string
+          maxLength: 200000
+          title: Statement Md
+          default: ''
+        difficulty:
+          type: string
+          enum:
+          - easy
+          - medium
+          - hard
+          title: Difficulty
+          default: medium
+        tags:
+          items:
+            type: string
+          type: array
+          maxItems: 12
+          title: Tags
+        time_limit_ms:
+          type: integer
+          maximum: 60000.0
+          minimum: 100.0
+          title: Time Limit Ms
+          default: 2000
+        memory_limit_mb:
+          type: integer
+          maximum: 8192.0
+          minimum: 16.0
+          title: Memory Limit Mb
+          default: 256
+        output_limit_mb:
+          type: integer
+          maximum: 1024.0
+          minimum: 1.0
+          title: Output Limit Mb
+          default: 64
+        visibility:
+          type: string
+          enum:
+          - public
+          - private
+          title: Visibility
+          default: public
+        source:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Source
+        license:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: License
+        slug:
+          type: string
+          pattern: ^[a-z0-9][a-z0-9\-]{1,62}[a-z0-9]$
+          title: Slug
+        checker:
+          $ref: '#/components/schemas/CheckerSpec'
+          default:
+            kind: tokens
+            float_abs: 1.0e-06
+            float_rel: 1.0e-06
+            case_sensitive: true
+            protocol: kattis
+      type: object
+      required:
+      - title
+      - slug
+      title: ProblemCreate
+    ProblemOrder:
+      properties:
+        labels:
+          items:
+            type: string
+          type: array
+          maxItems: 26
+          minItems: 1
+          title: Labels
+      type: object
+      required:
+      - labels
+      title: ProblemOrder
+    ProblemOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        slug:
+          type: string
+          title: Slug
+        title:
+          type: string
+          title: Title
+        difficulty:
+          type: string
+          enum:
+          - easy
+          - medium
+          - hard
+          title: Difficulty
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+        status:
+          type: string
+          enum:
+          - draft
+          - published
+          title: Status
+        visibility:
+          type: string
+          enum:
+          - public
+          - private
+          title: Visibility
+        submissions_count:
+          type: integer
+          title: Submissions Count
+        accepted_count:
+          type: integer
+          title: Accepted Count
+        solvers_count:
+          type: integer
+          title: Solvers Count
+        acceptance:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Acceptance
+          description: Accepted submissions over judged ones
+        mine:
+          anyOf:
+          - type: string
+            enum:
+            - solved
+            - attempted
+          - type: 'null'
+          title: Mine
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+        statement_md:
+          type: string
+          title: Statement Md
+        time_limit_ms:
+          type: integer
+          title: Time Limit Ms
+        memory_limit_mb:
+          type: integer
+          title: Memory Limit Mb
+        output_limit_mb:
+          type: integer
+          title: Output Limit Mb
+        checker:
+          type: string
+          enum:
+          - exact
+          - tokens
+          - float
+          - custom
+          title: Checker
+        max_score:
+          type: number
+          title: Max Score
+        groups:
+          items:
+            $ref: '#/components/schemas/GroupSpec'
+          type: array
+          title: Groups
+        samples:
+          items:
+            $ref: '#/components/schemas/Sample'
+          type: array
+          title: Samples
+        languages:
+          items:
+            $ref: '#/components/schemas/LanguageOut'
+          type: array
+          title: Languages
+        source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source
+        license:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: License
+        version:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Version
+      type: object
+      required:
+      - id
+      - slug
+      - title
+      - difficulty
+      - tags
+      - status
+      - visibility
+      - submissions_count
+      - accepted_count
+      - solvers_count
+      - updated_at
+      - statement_md
+      - time_limit_ms
+      - memory_limit_mb
+      - output_limit_mb
+      - checker
+      - max_score
+      - groups
+      - samples
+      - languages
+      - source
+      - license
+      - version
+      title: ProblemOut
+    ProblemPage:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/ProblemSummary'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: ProblemPage
+    ProblemRank:
+      properties:
+        problem_id:
+          type: string
+          format: uuid
+          title: Problem Id
+        slug:
+          type: string
+          title: Slug
+        title:
+          type: string
+          title: Title
+        difficulty:
+          type: string
+          title: Difficulty
+        submissions:
+          type: integer
+          title: Submissions
+        accepted:
+          type: integer
+          title: Accepted
+        acceptance:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Acceptance
+      type: object
+      required:
+      - problem_id
+      - slug
+      - title
+      - difficulty
+      - submissions
+      - accepted
+      - acceptance
+      title: ProblemRank
+    ProblemStats:
+      properties:
+        problem_id:
+          type: string
+          format: uuid
+          title: Problem Id
+        slug:
+          type: string
+          title: Slug
+        title:
+          type: string
+          title: Title
+        submissions:
+          type: integer
+          title: Submissions
+        accepted:
+          type: integer
+          title: Accepted
+        acceptance:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Acceptance
+        verdicts:
+          $ref: '#/components/schemas/VerdictMix'
+        attempters:
+          type: integer
+          title: Attempters
+        solvers:
+          type: integer
+          title: Solvers
+        median_ac_time_ms:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Median Ac Time Ms
+        median_attempts_to_ac:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Median Attempts To Ac
+        attempts_to_ac:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Attempts To Ac
+        daily:
+          items:
+            $ref: '#/components/schemas/DayPoint'
+          type: array
+          title: Daily
+      type: object
+      required:
+      - problem_id
+      - slug
+      - title
+      - submissions
+      - accepted
+      - acceptance
+      - verdicts
+      - attempters
+      - solvers
+      - median_ac_time_ms
+      - median_attempts_to_ac
+      - attempts_to_ac
+      - daily
+      title: ProblemStats
+    ProblemSummary:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        slug:
+          type: string
+          title: Slug
+        title:
+          type: string
+          title: Title
+        difficulty:
+          type: string
+          enum:
+          - easy
+          - medium
+          - hard
+          title: Difficulty
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+        status:
+          type: string
+          enum:
+          - draft
+          - published
+          title: Status
+        visibility:
+          type: string
+          enum:
+          - public
+          - private
+          title: Visibility
+        submissions_count:
+          type: integer
+          title: Submissions Count
+        accepted_count:
+          type: integer
+          title: Accepted Count
+        solvers_count:
+          type: integer
+          title: Solvers Count
+        acceptance:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Acceptance
+          description: Accepted submissions over judged ones
+        mine:
+          anyOf:
+          - type: string
+            enum:
+            - solved
+            - attempted
+          - type: 'null'
+          title: Mine
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - slug
+      - title
+      - difficulty
+      - tags
+      - status
+      - visibility
+      - submissions_count
+      - accepted_count
+      - solvers_count
+      - updated_at
+      title: ProblemSummary
+    ProblemUpdate:
+      properties:
+        title:
+          anyOf:
+          - type: string
+            maxLength: 200
+            minLength: 1
+          - type: 'null'
+          title: Title
+        slug:
+          anyOf:
+          - type: string
+            pattern: ^[a-z0-9][a-z0-9\-]{1,62}[a-z0-9]$
+          - type: 'null'
+          title: Slug
+        statement_md:
+          anyOf:
+          - type: string
+            maxLength: 200000
+          - type: 'null'
+          title: Statement Md
+        difficulty:
+          anyOf:
+          - type: string
+            enum:
+            - easy
+            - medium
+            - hard
+          - type: 'null'
+          title: Difficulty
+        tags:
+          anyOf:
+          - items:
+              type: string
+            type: array
+            maxItems: 12
+          - type: 'null'
+          title: Tags
+        time_limit_ms:
+          anyOf:
+          - type: integer
+            maximum: 60000.0
+            minimum: 100.0
+          - type: 'null'
+          title: Time Limit Ms
+        memory_limit_mb:
+          anyOf:
+          - type: integer
+            maximum: 8192.0
+            minimum: 16.0
+          - type: 'null'
+          title: Memory Limit Mb
+        output_limit_mb:
+          anyOf:
+          - type: integer
+            maximum: 1024.0
+            minimum: 1.0
+          - type: 'null'
+          title: Output Limit Mb
+        visibility:
+          anyOf:
+          - type: string
+            enum:
+            - public
+            - private
+          - type: 'null'
+          title: Visibility
+        source:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Source
+        license:
+          anyOf:
+          - type: string
+            maxLength: 64
+          - type: 'null'
+          title: License
+      type: object
+      title: ProblemUpdate
+    PublicSettings:
+      properties:
+        site_name:
+          type: string
+          title: Site Name
+        allow_signup:
+          type: boolean
+          title: Allow Signup
+        default_language:
+          type: string
+          title: Default Language
+        ai_enabled:
+          type: boolean
+          title: Ai Enabled
+      type: object
+      required:
+      - site_name
+      - allow_signup
+      - default_language
+      - ai_enabled
+      title: PublicSettings
+      description: What the sign-in page needs. No secrets, no AI endpoint.
+    QueueStatus:
+      properties:
+        waiting:
+          type: integer
+          title: Waiting
+        in_progress:
+          type: integer
+          title: In Progress
+        workers:
+          type: integer
+          title: Workers
+      type: object
+      required:
+      - waiting
+      - in_progress
+      - workers
+      title: QueueStatus
+    RecentSubmission:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        problem_slug:
+          type: string
+          title: Problem Slug
+        problem_title:
+          type: string
+          title: Problem Title
+        language:
+          type: string
+          title: Language
+        verdict:
+          type: string
+          title: Verdict
+        score:
+          type: number
+          title: Score
+        max_score:
+          type: number
+          title: Max Score
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - problem_slug
+      - problem_title
+      - language
+      - verdict
+      - score
+      - max_score
+      - created_at
+      title: RecentSubmission
+    ReferenceIn:
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Name
+        language:
+          type: string
+          title: Language
+        source:
+          type: string
+          maxLength: 128000
+          minLength: 1
+          title: Source
+        expected:
+          type: string
+          enum:
+          - AC
+          - WA
+          - TLE
+          - MLE
+          - RE
+          title: Expected
+          default: AC
+      type: object
+      required:
+      - name
+      - language
+      - source
+      title: ReferenceIn
+    ReferenceOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        language:
+          type: string
+          title: Language
+        expected:
+          type: string
+          title: Expected
+        source:
+          type: string
+          title: Source
+        last_submission_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Last Submission Id
+        last_verdict:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Verdict
+        last_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Status
+        matches:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Matches
+      type: object
+      required:
+      - id
+      - name
+      - language
+      - expected
+      - source
+      - last_submission_id
+      title: ReferenceOut
+    RejudgeRequest:
+      properties:
+        ids:
+          items:
+            type: string
+            format: uuid
+          type: array
+          maxItems: 5000
+          minItems: 1
+          title: Ids
+        latest_version:
+          type: boolean
+          title: Latest Version
+          default: false
+      type: object
+      required:
+      - ids
+      title: RejudgeRequest
+    RejudgeResult:
+      properties:
+        queued:
+          type: integer
+          title: Queued
+      type: object
+      required:
+      - queued
+      title: RejudgeResult
+    Report:
+      properties:
+        invitation:
+          $ref: '#/components/schemas/InvitationOut'
+        assessment_title:
+          type: string
+          title: Assessment Title
+        duration_minutes:
+          type: integer
+          title: Duration Minutes
+        total_points:
+          type: number
+          title: Total Points
+        total:
+          type: number
+          title: Total
+        minutes_used:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Minutes Used
+        problems:
+          items:
+            $ref: '#/components/schemas/ReportProblem'
+          type: array
+          title: Problems
+        submissions:
+          items:
+            $ref: '#/components/schemas/ReportSubmission'
+          type: array
+          title: Submissions
+        events:
+          items:
+            $ref: '#/components/schemas/ReportEvent'
+          type: array
+          title: Events
+        signals_note:
+          type: string
+          title: Signals Note
+      type: object
+      required:
+      - invitation
+      - assessment_title
+      - duration_minutes
+      - total_points
+      - total
+      - minutes_used
+      - problems
+      - submissions
+      - events
+      - signals_note
+      title: Report
+    ReportEvent:
+      properties:
+        kind:
+          type: string
+          title: Kind
+        at:
+          type: string
+          format: date-time
+          title: At
+        detail:
+          additionalProperties: true
+          type: object
+          title: Detail
+      type: object
+      required:
+      - kind
+      - at
+      - detail
+      title: ReportEvent
+    ReportProblem:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        slug:
+          type: string
+          title: Slug
+        title:
+          type: string
+          title: Title
+        points:
+          type: number
+          title: Points
+        earned:
+          type: number
+          title: Earned
+        best_verdict:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Best Verdict
+        attempts:
+          type: integer
+          title: Attempts
+      type: object
+      required:
+      - id
+      - slug
+      - title
+      - points
+      - earned
+      - best_verdict
+      - attempts
+      title: ReportProblem
+    ReportSubmission:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        problem_id:
+          type: string
+          format: uuid
+          title: Problem Id
+        problem_slug:
+          type: string
+          title: Problem Slug
+        language:
+          type: string
+          title: Language
+        verdict:
+          type: string
+          title: Verdict
+        score:
+          type: number
+          title: Score
+        max_score:
+          type: number
+          title: Max Score
+        time_ms:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Time Ms
+        memory_kb:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Memory Kb
+        source:
+          type: string
+          title: Source
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - problem_id
+      - problem_slug
+      - language
+      - verdict
+      - score
+      - max_score
+      - time_ms
+      - memory_kb
+      - source
+      - created_at
+      title: ReportSubmission
+    RowOut:
+      properties:
+        rank:
+          type: integer
+          title: Rank
+        user_id:
+          type: string
+          format: uuid
+          title: User Id
+        name:
+          type: string
+          title: Name
+        solved:
+          type: integer
+          title: Solved
+        penalty:
+          type: integer
+          title: Penalty
+        score:
+          type: number
+          title: Score
+        cells:
+          items:
+            $ref: '#/components/schemas/CellOut'
+          type: array
+          title: Cells
+      type: object
+      required:
+      - rank
+      - user_id
+      - name
+      - solved
+      - penalty
+      - score
+      - cells
+      title: RowOut
+    RunCreate:
+      properties:
+        problem:
+          type: string
+          title: Problem
+        language:
+          type: string
+          title: Language
+        source:
+          type: string
+          maxLength: 200000
+          title: Source
+        input:
+          anyOf:
+          - type: string
+            maxLength: 1000000
+          - type: 'null'
+          title: Input
+        context:
+          type: string
+          enum:
+          - practice
+          - contest
+          - assignment
+          - assessment
+          title: Context
+          default: practice
+        context_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Context Id
+      type: object
+      required:
+      - problem
+      - language
+      - source
+      title: RunCreate
+    RunDetail:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        scope:
+          type: string
+          enum:
+          - problem
+          - contest
+          - assignment
+          title: Scope
+        scope_id:
+          type: string
+          format: uuid
+          title: Scope Id
+        threshold:
+          type: number
+          title: Threshold
+        status:
+          type: string
+          enum:
+          - queued
+          - running
+          - done
+          - failed
+          title: Status
+        documents:
+          type: integer
+          title: Documents
+        comparisons:
+          type: integer
+          title: Comparisons
+        flagged:
+          type: integer
+          title: Flagged
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        started_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Started At
+        finished_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Finished At
+        pairs:
+          items:
+            $ref: '#/components/schemas/PairOut'
+          type: array
+          title: Pairs
+      type: object
+      required:
+      - id
+      - scope
+      - scope_id
+      - threshold
+      - status
+      - documents
+      - comparisons
+      - flagged
+      - error
+      - created_at
+      - started_at
+      - finished_at
+      - pairs
+      title: RunDetail
+    RunOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        scope:
+          type: string
+          enum:
+          - problem
+          - contest
+          - assignment
+          title: Scope
+        scope_id:
+          type: string
+          format: uuid
+          title: Scope Id
+        threshold:
+          type: number
+          title: Threshold
+        status:
+          type: string
+          enum:
+          - queued
+          - running
+          - done
+          - failed
+          title: Status
+        documents:
+          type: integer
+          title: Documents
+        comparisons:
+          type: integer
+          title: Comparisons
+        flagged:
+          type: integer
+          title: Flagged
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        started_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Started At
+        finished_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Finished At
+      type: object
+      required:
+      - id
+      - scope
+      - scope_id
+      - threshold
+      - status
+      - documents
+      - comparisons
+      - flagged
+      - error
+      - created_at
+      - started_at
+      - finished_at
+      title: RunOut
+    Sample:
+      properties:
+        name:
+          type: string
+          title: Name
+        input:
+          type: string
+          title: Input
+        output:
+          type: string
+          title: Output
+      type: object
+      required:
+      - name
+      - input
+      - output
+      title: Sample
+    Scoreboard:
+      properties:
+        contest_id:
+          type: string
+          format: uuid
+          title: Contest Id
+        format:
+          type: string
+          enum:
+          - icpc
+          - ioi
+          title: Format
+        phase:
+          type: string
+          enum:
+          - upcoming
+          - running
+          - ended
+          title: Phase
+        frozen:
+          type: boolean
+          title: Frozen
+        freeze_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Freeze At
+        problems:
+          items:
+            $ref: '#/components/schemas/ContestProblemOut'
+          type: array
+          title: Problems
+        rows:
+          items:
+            $ref: '#/components/schemas/RowOut'
+          type: array
+          title: Rows
+      type: object
+      required:
+      - contest_id
+      - format
+      - phase
+      - frozen
+      - freeze_at
+      - problems
+      - rows
+      title: Scoreboard
+    SettingsUpdate:
+      properties:
+        site_name:
+          anyOf:
+          - type: string
+            maxLength: 80
+            minLength: 1
+          - type: 'null'
+          title: Site Name
+        allow_signup:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Allow Signup
+        default_language:
+          anyOf:
+          - type: string
+            maxLength: 32
+          - type: 'null'
+          title: Default Language
+        ai_enabled:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Ai Enabled
+        ai_base_url:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Ai Base Url
+        ai_model:
+          anyOf:
+          - type: string
+            maxLength: 120
+          - type: 'null'
+          title: Ai Model
+        ai_api_key:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Ai Api Key
+        ai_max_hints_per_problem:
+          anyOf:
+          - type: integer
+            maximum: 50.0
+            minimum: 0.0
+          - type: 'null'
+          title: Ai Max Hints Per Problem
+        ai_allowed_in_practice:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Ai Allowed In Practice
+        ai_allowed_in_assignments:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Ai Allowed In Assignments
+      type: object
+      title: SettingsUpdate
+    Side:
+      properties:
+        submission_id:
+          type: string
+          format: uuid
+          title: Submission Id
+        author:
+          type: string
+          title: Author
+        user_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: User Id
+        verdict:
+          type: string
+          title: Verdict
+        score:
+          type: number
+          title: Score
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        coverage:
+          type: number
+          title: Coverage
+        ranges:
+          items:
+            prefixItems:
+            - type: integer
+            - type: integer
+            type: array
+            maxItems: 2
+            minItems: 2
+          type: array
+          title: Ranges
+      type: object
+      required:
+      - submission_id
+      - author
+      - user_id
+      - verdict
+      - score
+      - created_at
+      - coverage
+      - ranges
+      title: Side
+    SignInOut:
+      properties:
+        user:
+          $ref: '#/components/schemas/UserOut'
+        session_token:
+          type: string
+          title: Session Token
+          description: Bearer token for API clients; browsers use the cookie
+        expires_in_s:
+          type: integer
+          title: Expires In S
+      type: object
+      required:
+      - user
+      - session_token
+      - expires_in_s
+      title: SignInOut
+    SignupRequest:
+      properties:
+        email:
+          type: string
+          maxLength: 320
+          pattern: ^[^@\s]+@[^@\s]+\.[^@\s]+$
+          title: Email
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Name
+        password:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Password
+      type: object
+      required:
+      - email
+      - name
+      - password
+      title: SignupRequest
+    SubmissionCreate:
+      properties:
+        problem:
+          type: string
+          title: Problem
+          description: Problem id or slug
+        language:
+          type: string
+          title: Language
+        source:
+          type: string
+          maxLength: 200000
+          title: Source
+        context:
+          type: string
+          enum:
+          - practice
+          - contest
+          - assignment
+          - assessment
+          title: Context
+          default: practice
+        context_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Context Id
+      type: object
+      required:
+      - problem
+      - language
+      - source
+      title: SubmissionCreate
+    SubmissionOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        problem_id:
+          type: string
+          format: uuid
+          title: Problem Id
+        problem_slug:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Problem Slug
+        problem_title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Problem Title
+        user_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: User Id
+        language:
+          type: string
+          title: Language
+        context:
+          type: string
+          title: Context
+        context_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Context Id
+        status:
+          type: string
+          enum:
+          - queued
+          - judging
+          - done
+          title: Status
+        verdict:
+          type: string
+          title: Verdict
+        score:
+          type: number
+          title: Score
+        max_score:
+          type: number
+          title: Max Score
+        time_ms:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Time Ms
+        memory_kb:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Memory Kb
+        late:
+          type: boolean
+          title: Late
+        progress:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Progress
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        judged_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Judged At
+        compile_output:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Compile Output
+        source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source
+        tests:
+          items:
+            $ref: '#/components/schemas/TestOut'
+          type: array
+          title: Tests
+        groups:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Groups
+        run_input:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Run Input
+        run_output:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Run Output
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+        worker:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Worker
+        user_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: User Name
+      type: object
+      required:
+      - id
+      - problem_id
+      - problem_slug
+      - problem_title
+      - user_id
+      - language
+      - context
+      - context_id
+      - status
+      - verdict
+      - score
+      - max_score
+      - time_ms
+      - memory_kb
+      - late
+      - progress
+      - created_at
+      - judged_at
+      title: SubmissionOut
+    SubmissionPage:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/SubmissionOut'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: SubmissionPage
+    SystemInfo:
+      properties:
+        version:
+          type: string
+          title: Version
+        environment:
+          type: string
+          title: Environment
+        storage:
+          type: string
+          title: Storage
+        key_mode:
+          type: string
+          title: Key Mode
+        cache:
+          type: string
+          title: Cache
+        mail:
+          type: string
+          title: Mail
+        redis:
+          type: boolean
+          title: Redis
+        judge:
+          anyOf:
+          - $ref: '#/components/schemas/JudgeInfo'
+          - type: 'null'
+        languages:
+          items:
+            type: string
+          type: array
+          title: Languages
+        problems:
+          type: integer
+          title: Problems
+        users:
+          type: integer
+          title: Users
+        submissions:
+          type: integer
+          title: Submissions
+      type: object
+      required:
+      - version
+      - environment
+      - storage
+      - key_mode
+      - cache
+      - mail
+      - redis
+      - judge
+      - languages
+      - problems
+      - users
+      - submissions
+      title: SystemInfo
+    TagCount:
+      properties:
+        tag:
+          type: string
+          title: Tag
+        problems:
+          type: integer
+          title: Problems
+      type: object
+      required:
+      - tag
+      - problems
+      title: TagCount
+    TestIn:
+      properties:
+        name:
+          type: string
+          pattern: ^(sample|secret)/[A-Za-z0-9_\-/]{1,100}$
+          title: Name
+        input:
+          type: string
+          maxLength: 5000000
+          title: Input
+        answer:
+          type: string
+          maxLength: 5000000
+          title: Answer
+      type: object
+      required:
+      - name
+      - input
+      - answer
+      title: TestIn
+      description: A test written in the problem editor (large tests come as a package upload).
+    TestMeta:
+      properties:
+        name:
+          type: string
+          title: Name
+        group:
+          type: string
+          title: Group
+        sample:
+          type: boolean
+          title: Sample
+        input_bytes:
+          type: integer
+          title: Input Bytes
+        answer_bytes:
+          type: integer
+          title: Answer Bytes
+      type: object
+      required:
+      - name
+      - group
+      - sample
+      - input_bytes
+      - answer_bytes
+      title: TestMeta
+    TestOut:
+      properties:
+        name:
+          type: string
+          title: Name
+        group:
+          type: string
+          title: Group
+        verdict:
+          type: string
+          title: Verdict
+        time_ms:
+          type: integer
+          title: Time Ms
+        memory_kb:
+          type: integer
+          title: Memory Kb
+        output:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Output
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Message
+      type: object
+      required:
+      - name
+      - group
+      - verdict
+      - time_ms
+      - memory_kb
+      title: TestOut
+    UserCreate:
+      properties:
+        email:
+          type: string
+          maxLength: 320
+          pattern: ^[^@\s]+@[^@\s]+\.[^@\s]+$
+          title: Email
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Name
+        role:
+          type: string
+          enum:
+          - admin
+          - staff
+          - student
+          title: Role
+          default: student
+        password:
+          type: string
+          maxLength: 256
+          minLength: 10
+          title: Password
+      type: object
+      required:
+      - email
+      - name
+      - password
+      title: UserCreate
+    UserOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        email:
+          type: string
+          title: Email
+        name:
+          type: string
+          title: Name
+        role:
+          type: string
+          title: Role
+        disabled:
+          type: boolean
+          title: Disabled
+        last_login_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Login At
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - email
+      - name
+      - role
+      - disabled
+      - last_login_at
+      - created_at
+      title: UserOut
+    UserProgress:
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          title: User Id
+        name:
+          type: string
+          title: Name
+        solved:
+          type: integer
+          title: Solved
+        attempted:
+          type: integer
+          title: Attempted
+        submissions:
+          type: integer
+          title: Submissions
+        accepted_submissions:
+          type: integer
+          title: Accepted Submissions
+        solved_by_difficulty:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Solved By Difficulty
+        activity:
+          items:
+            $ref: '#/components/schemas/DayPoint'
+          type: array
+          title: Activity
+        recent:
+          items:
+            $ref: '#/components/schemas/RecentSubmission'
+          type: array
+          title: Recent
+      type: object
+      required:
+      - user_id
+      - name
+      - solved
+      - attempted
+      - submissions
+      - accepted_submissions
+      - solved_by_difficulty
+      - activity
+      - recent
+      title: UserProgress
+    UserUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 200
+            minLength: 1
+          - type: 'null'
+          title: Name
+        role:
+          anyOf:
+          - type: string
+            enum:
+            - admin
+            - staff
+            - student
+          - type: 'null'
+          title: Role
+        disabled:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Disabled
+      type: object
+      title: UserUpdate
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    VerdictMix:
+      properties:
+        AC:
+          type: integer
+          title: Ac
+          default: 0
+        WA:
+          type: integer
+          title: Wa
+          default: 0
+        TLE:
+          type: integer
+          title: Tle
+          default: 0
+        MLE:
+          type: integer
+          title: Mle
+          default: 0
+        RE:
+          type: integer
+          title: Re
+          default: 0
+        CE:
+          type: integer
+          title: Ce
+          default: 0
+        OLE:
+          type: integer
+          title: Ole
+          default: 0
+        IE:
+          type: integer
+          title: Ie
+          default: 0
+      type: object
+      title: VerdictMix
+    VersionCreate:
+      properties:
+        tests:
+          items:
+            $ref: '#/components/schemas/TestIn'
+          type: array
+          maxItems: 500
+          minItems: 1
+          title: Tests
+        groups:
+          items:
+            $ref: '#/components/schemas/GroupSpec'
+          type: array
+          maxItems: 50
+          title: Groups
+        checker:
+          anyOf:
+          - $ref: '#/components/schemas/CheckerSpec'
+          - type: 'null'
+        checker_source:
+          anyOf:
+          - type: string
+            maxLength: 200000
+          - type: 'null'
+          title: Checker Source
+        note:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Note
+      type: object
+      required:
+      - tests
+      title: VersionCreate
+    VersionOut:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        number:
+          type: integer
+          title: Number
+        package_sha256:
+          type: string
+          title: Package Sha256
+        package_bytes:
+          type: integer
+          title: Package Bytes
+        tests:
+          items:
+            $ref: '#/components/schemas/TestMeta'
+          type: array
+          title: Tests
+        groups:
+          items:
+            $ref: '#/components/schemas/GroupSpec'
+          type: array
+          title: Groups
+        checker:
+          $ref: '#/components/schemas/CheckerSpec'
+        max_score:
+          type: number
+          title: Max Score
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        current:
+          type: boolean
+          title: Current
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - number
+      - package_sha256
+      - package_bytes
+      - tests
+      - groups
+      - checker
+      - max_score
+      - note
+      - current
+      - created_at
+      title: VersionOut
+servers:
+- url: http://localhost:4530
+  description: Local (make up)

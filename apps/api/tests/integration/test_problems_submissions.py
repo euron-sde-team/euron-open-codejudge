@@ -72,7 +72,9 @@ async def test_students_never_see_hidden_tests(stack: Stack) -> None:
     student = await stack.user()
     problem = (await student.get("/api/v1/problems/sum")).json()
     assert [s["name"] for s in problem["samples"]] == ["sample/1"]
-    assert "40 2" not in str(problem) and "42" not in str(problem)
+    visible = str(problem["samples"]) + problem["statement_md"]
+    assert "40 2" not in visible and "42" not in visible
+    assert "tests" not in problem and "versions" not in problem
     for path in (
         f"/api/v1/problems/{p['id']}/admin",
         f"/api/v1/problems/{p['id']}/tests/secret/1",
@@ -216,3 +218,23 @@ async def _job_for(stack: Stack, submission_id: str) -> JudgeJob:
 
 
 __all__ = ["JudgeResult"]
+
+
+async def test_large_tests_upload_for_staff_but_not_anonymously(stack: Stack) -> None:
+    """Packages are large: staff may send them past the general body limit; anonymous
+    clients stay at the small limit."""
+    p = await stack.ok("POST", "/api/v1/problems", {"slug": "big", "title": "Big"}, status=201)
+    big = "1 " * 1_500_000
+    tests = [
+        {"name": "sample/1", "input": "1 1\n", "answer": "2\n"},
+        {"name": "secret/1", "input": big, "answer": "3\n"},
+    ]
+    resp = await stack.client.post(f"/api/v1/problems/{p['id']}/versions", json={"tests": tests})
+    assert resp.status_code == 201, resp.text[:300]
+    # Refused before the body is read: a 413, or the connection closed while sending.
+    async with stack.anonymous() as anon:
+        try:
+            resp = await anon.post(f"/api/v1/problems/{p['id']}/versions", json={"tests": tests})
+            assert resp.status_code == 413
+        except httpx.TransportError:
+            pass
