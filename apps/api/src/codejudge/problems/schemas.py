@@ -21,6 +21,16 @@ Visibility = Literal["public", "private"]
 SLUG = r"^[a-z0-9][a-z0-9\-]{1,62}[a-z0-9]$"
 
 
+def normalise_tags(tags: list[str]) -> list[str]:
+    """Lowercase, trimmed, unique, in the order given."""
+    out: list[str] = []
+    for tag in tags:
+        t = tag.strip().lower()[:40]
+        if t and t not in out:
+            out.append(t)
+    return out
+
+
 class ProblemBase(ApiModel):
     title: str = Field(min_length=1, max_length=200)
     statement_md: str = Field("", max_length=200_000)
@@ -36,12 +46,7 @@ class ProblemBase(ApiModel):
     @field_validator("tags")
     @classmethod
     def _tags(cls, v: list[str]) -> list[str]:
-        out = []
-        for tag in v:
-            t = tag.strip().lower()[:40]
-            if t and t not in out:
-                out.append(t)
-        return out
+        return normalise_tags(v)
 
 
 class ProblemCreate(ProblemBase):
@@ -61,6 +66,11 @@ class ProblemUpdate(ApiModel):
     visibility: Visibility | None = None
     source: str | None = Field(None, max_length=200)
     license: str | None = Field(None, max_length=64)
+
+    @field_validator("tags")
+    @classmethod
+    def _tags(cls, v: list[str] | None) -> list[str] | None:
+        return None if v is None else normalise_tags(v)
 
 
 class Sample(ApiModel):

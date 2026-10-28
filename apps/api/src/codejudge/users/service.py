@@ -1,4 +1,4 @@
-"""Dashboard user management. Guards keep at least one active owner at all times."""
+"""Dashboard user management. Guards keep at least one active admin at all times."""
 
 from __future__ import annotations
 
@@ -20,9 +20,9 @@ async def list_users(session: AsyncSession) -> Sequence[User]:
     return (await session.scalars(select(User).order_by(User.created_at))).all()
 
 
-async def _active_owners(session: AsyncSession) -> int:
-    """Count active owners, locking their rows until commit so two owners demoting each
-    other at once cannot both pass the last-owner check."""
+async def _active_admins(session: AsyncSession) -> int:
+    """Count active admins, locking their rows until commit so two admins demoting each
+    other at once cannot both pass the last-admin check."""
     rows = await session.scalars(
         select(User.id).where(User.role == "admin", User.disabled.is_(False)).with_for_update()
     )
@@ -35,7 +35,7 @@ async def create_user(session: AsyncSession, data: UserCreate, actor: Actor) -> 
     if problems := password_problems(data.password):
         raise AppError("Password needs " + ", ".join(problems), code="weak_password")
     if data.role == "admin" and actor.role != "admin":
-        raise PermissionDeniedError("Only an owner can create another owner")
+        raise PermissionDeniedError("Only an admin can create another admin")
     user = User(
         email=data.email.lower(),
         name=data.name,
@@ -59,12 +59,16 @@ async def update_user(
     if user.id == actor.id and ("role" in changes or changes.get("disabled")):
         raise PermissionDeniedError("You cannot change your own role or disable yourself")
     if (changes.get("role") == "admin" or user.role == "admin") and actor.role != "admin":
-        raise PermissionDeniedError("Only an owner can change an owner")
-    demoting = user.role == "admin" and (
-        changes.get("role", "admin") != "admin" or changes.get("disabled")
+        raise PermissionDeniedError("Only an admin can change an admin")
+    # Only taking away an *active* admin can leave nobody in charge; a disabled admin
+    # does not count, so demoting one is always allowed.
+    demoting = (
+        user.role == "admin"
+        and not user.disabled
+        and (changes.get("role", "admin") != "admin" or changes.get("disabled"))
     )
-    if demoting and await _active_owners(session) <= 1:
-        raise ConflictError("At least one active owner is required", code="last_owner")
+    if demoting and await _active_admins(session) <= 1:
+        raise ConflictError("At least one active admin is required", code="last_admin")
     for field, value in changes.items():
         setattr(user, field, value)
     if "role" in changes or changes.get("disabled"):

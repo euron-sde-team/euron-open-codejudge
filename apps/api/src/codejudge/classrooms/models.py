@@ -19,7 +19,6 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -74,7 +73,7 @@ class Assignment(TimestampMixin, Base):
 
 class AssignmentProblem(Base):
     __tablename__ = "assignment_problems"
-    __table_args__ = (UniqueConstraint("assignment_id", "problem_id"),)
+    # The composite primary key already makes (assignment, problem) unique.
     assignment_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("assignments.id", ondelete="CASCADE"), primary_key=True
     )

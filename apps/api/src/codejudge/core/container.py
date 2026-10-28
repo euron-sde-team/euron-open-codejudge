@@ -11,7 +11,6 @@ from dataclasses import dataclass
 import httpx
 
 from codejudge.core.aws import aws_client
-from codejudge.core.cache import ConfigCache
 from codejudge.core.config import Settings
 from codejudge.core.db import Database
 from codejudge.core.kv import KV, create_kv
@@ -35,7 +34,6 @@ class Container:
     kv: KV
     # Outbound calls the control plane makes itself: the optional AI hint provider.
     http: httpx.AsyncClient
-    config_cache: ConfigCache
     sealer: KeySealer
     storage: ObjectStorage
     queue: JudgeQueue
@@ -62,7 +60,6 @@ class Container:
             ),
             kv=kv,
             http=build_http_client(10.0),
-            config_cache=ConfigCache(kv),
             sealer=sealer,
             storage=storage,
             queue=JudgeQueue(settings.redis_url),

@@ -111,7 +111,7 @@ def mock_ai() -> Iterator[str]:
 
 @pytest.fixture(scope="session")
 async def database() -> AsyncIterator[str]:
-    """A fresh database for this run."""
+    """A fresh database built by the migrations (so they are tested on every run)."""
     _guard(TEST_DB)
     admin_url = TEST_DB.rsplit("/", 1)[0] + "/postgres"
     name = TEST_DB.rsplit("/", 1)[1]
@@ -120,15 +120,9 @@ async def database() -> AsyncIterator[str]:
         await conn.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
         await conn.execute(text(f'CREATE DATABASE "{name}"'))
     await engine.dispose()
-    # While the domains are being built the schema comes from the models; the release
-    # squashes them into one initial migration and this fixture runs it instead.
-    from codejudge.core.db import Base, import_all_models
+    from codejudge.migrations.runner import upgrade
 
-    import_all_models()
-    engine = create_async_engine(TEST_DB)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    await engine.dispose()
+    await asyncio.to_thread(upgrade, TEST_DB)
     yield TEST_DB
 
 
