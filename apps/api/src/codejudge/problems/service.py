@@ -163,15 +163,32 @@ async def list_problems(
 
 
 async def detail(
-    session: AsyncSession, p: Problem, who: Submitter, *, check_access: bool = True
+    session: AsyncSession,
+    p: Problem,
+    who: Submitter,
+    *,
+    check_access: bool = True,
+    with_counters: bool = True,
 ) -> ProblemOut:
+    """``with_counters=False`` for contests and interviews: site-wide solve counts would tell
+    a contestant how many solved it after the freeze, and mean nothing to a candidate."""
     if check_access and not can_practice(p, who):
         raise NotFoundError("Problem not found")
     v = await version(session, p)
     mine = (await mine_map(session, who.user_id, [p.id])).get(p.id)
     checker = CheckerSpec.model_validate(p.checker or {})
+    head = summary(p, mine)
+    if not with_counters:
+        head = head.model_copy(
+            update={
+                "submissions_count": 0,
+                "accepted_count": 0,
+                "solvers_count": 0,
+                "acceptance": None,
+            }
+        )
     return ProblemOut(
-        **summary(p, mine).model_dump(),
+        **head.model_dump(),
         statement_md=p.statement_md,
         time_limit_ms=p.time_limit_ms,
         memory_limit_mb=p.memory_limit_mb,

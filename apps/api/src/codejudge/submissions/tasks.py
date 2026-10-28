@@ -49,9 +49,51 @@ async def queue_depth(container: Container) -> int:
     does not keep the worker ticking on its own."""
     if not await container.queue.ping():
         return 0
+    await container.queue.prune_consumers()
     depth = await container.queue.depth()
     QUEUE_WAITING.set(depth["waiting"])
     QUEUE_IN_PROGRESS.set(depth["in_progress"])
     QUEUE_WORKERS.set(depth["workers"])
     log.info("judge queue", extra=depth)
     return 0
+
+
+LOST_AFTER = timedelta(minutes=2)
+
+
+@periodic("submissions.requeue_lost")
+async def requeue_lost(container: Container) -> int:
+    """Queue again any submission still waiting whose job is not on the stream: it was
+    committed but the enqueue failed (Redis down for a moment), or the stream was lost.
+    Re-queueing is harmless if the job did exist after all: ingest accepts one result per
+    job id and refuses the second."""
+    from codejudge.problems.models import Problem, ProblemVersion
+    from codejudge.submissions.service import build_job
+
+    if not await container.queue.ping():
+        return 0
+    cutoff = datetime.now(UTC) - LOST_AFTER
+    async with container.db.sessionmaker() as session:
+        waiting = list(
+            (
+                await session.scalars(
+                    select(Submission)
+                    .where(Submission.status == "queued", Submission.created_at < cutoff)
+                    .order_by(Submission.created_at)
+                    .limit(BATCH)
+                )
+            ).all()
+        )
+        if not waiting:
+            return 0
+        on_stream = await container.queue.job_ids()
+        lost = [s for s in waiting if s.job_id not in on_stream]
+        for s in lost:
+            problem = await session.get(Problem, s.problem_id)
+            version = await session.get(ProblemVersion, s.version_id)
+            if problem is None or version is None:
+                continue
+            await container.queue.enqueue(build_job(s, problem, version))
+        if lost:
+            log.warning("re-queued %d lost judge jobs", len(lost))
+        return len(lost)

@@ -11,9 +11,8 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import UTC, datetime
-from typing import Any
 
-from sqlalchemy import func, select, update
+from sqlalchemy import and_, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from codejudge.audit.service import Actor, audit
@@ -281,12 +280,14 @@ def to_out(
         context_id=s.context_id,
         status=s.status,
         verdict=s.verdict,
-        score=s.score,
+        # Hidden details: the score follows from the verdict alone (which subtasks passed
+        # would otherwise show), and no "running test N" progress.
+        score=(s.max_score if s.verdict == "AC" else 0.0) if hide else s.score,
         max_score=s.max_score,
         time_ms=s.time_ms,
         memory_kb=s.memory_kb,
         late=s.late,
-        progress=s.progress,
+        progress=None if hide else s.progress,
         created_at=s.created_at,
         judged_at=s.judged_at,
         compile_output=s.compile_output if (own or who.is_staff) else None,
@@ -302,16 +303,26 @@ def to_out(
 
 # ── ingesting results ────────────────────────────────────────────────────────────────
 async def heartbeat(container: Container, session: AsyncSession, beat: Heartbeat) -> None:
-    s = await session.scalar(select(Submission).where(Submission.job_id == beat.job_id))
-    if s is None or s.status == "done":
-        return
+    """Progress from the worker. One conditional UPDATE: it can never overwrite a verdict
+    that was applied in the meantime (a late beat racing the result)."""
     progress = "compiling" if beat.status == "compiling" else f"running test {beat.tests_done + 1}"
-    s.status, s.progress, s.worker, s.attempt = "judging", progress, beat.worker, beat.attempt
-    s.verdict = Verdict.JUDGING.value
-    await session.commit()
-    await container.queue.publish(
-        str(s.id), json.dumps({"status": "judging", "progress": progress})
+    sid = await session.scalar(
+        update(Submission)
+        .where(Submission.job_id == beat.job_id, Submission.status != "done")
+        .values(
+            status="judging",
+            progress=progress,
+            worker=beat.worker,
+            attempt=beat.attempt,
+            verdict=Verdict.JUDGING.value,
+        )
+        .returning(Submission.id)
     )
+    await session.commit()
+    if sid is not None:
+        await container.queue.publish(
+            str(sid), json.dumps({"status": "judging", "progress": progress})
+        )
 
 
 async def ingest(container: Container, session: AsyncSession, result: JudgeResult) -> bool:
@@ -332,37 +343,41 @@ async def ingest(container: Container, session: AsyncSession, result: JudgeResul
     s.run_output = result.run_output
     s.worker, s.attempt, s.error, s.progress = result.worker, result.attempt, result.error, None
     s.judged_ms, s.judged_at = result.judged_ms, datetime.now(UTC)
-    if s.context in COUNTED:
-        await _count(session, s)
     for listener in contexts.listeners():
         await listener(container, session, s)
     await session.commit()
+    if s.context in COUNTED:
+        await recount(session, s.problem_id)
+        await session.commit()
+    for listener in contexts.committed_listeners():
+        await listener(container, session, s)
     await container.queue.publish(
         str(s.id), json.dumps({"status": "done", "verdict": s.verdict, "score": s.score})
     )
     return True
 
 
-async def _count(session: AsyncSession, s: Submission) -> None:
-    """Problem counters: accepted submissions and distinct solvers (first AC only)."""
-    if s.verdict != Verdict.AC.value or s.rejudged:
-        return
-    values: dict[str, Any] = {"accepted_count": Problem.accepted_count + 1}
-    if s.user_id is not None:
-        earlier = await session.scalar(
-            select(func.count())
-            .select_from(Submission)
-            .where(
-                Submission.user_id == s.user_id,
-                Submission.problem_id == s.problem_id,
-                Submission.verdict == Verdict.AC.value,
-                Submission.context.in_(COUNTED),
-                Submission.id != s.id,
-            )
-        )
-        if not earlier:
-            values["solvers_count"] = Problem.solvers_count + 1
-    await session.execute(update(Problem).where(Problem.id == s.problem_id).values(**values))
+async def recount(session: AsyncSession, problem_id: uuid.UUID) -> None:
+    """Accepted submissions and distinct solvers, recomputed from committed rows in one
+    statement. Run after the verdict is committed, so concurrent verdicts and rejudges
+    (in either direction) always leave the counters exact."""
+    counted = and_(Submission.problem_id == problem_id, Submission.context.in_(COUNTED))
+    accepted = (
+        select(func.count())
+        .select_from(Submission)
+        .where(counted, Submission.verdict == Verdict.AC.value)
+        .scalar_subquery()
+    )
+    solvers = (
+        select(func.count(func.distinct(Submission.user_id)))
+        .where(counted, Submission.verdict == Verdict.AC.value)
+        .scalar_subquery()
+    )
+    await session.execute(
+        update(Problem)
+        .where(Problem.id == problem_id)
+        .values(accepted_count=accepted, solvers_count=solvers)
+    )
 
 
 # ── rejudging ────────────────────────────────────────────────────────────────────────

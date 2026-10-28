@@ -180,7 +180,7 @@ async def _call(
 ) -> tuple[str, int, int]:
     base = (row.ai_base_url or "").rstrip("/")
     org.check_endpoint(container, base)
-    if not await resolves_safely(base):
+    if not await resolves_safely(base, allow_private=container.settings.ai_allow_private_endpoints):
         raise HintProviderError(
             "The AI endpoint resolves to a forbidden address. Check the URL in Settings",
             code="ai_endpoint_forbidden",

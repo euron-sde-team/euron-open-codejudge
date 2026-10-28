@@ -60,6 +60,7 @@ Listener = Callable[["Container", AsyncSession, "Submission"], Awaitable[None]]
 
 _POLICIES: dict[str, ContextPolicy] = {}
 _LISTENERS: list[Listener] = []
+_AFTER_COMMIT: list[Listener] = []
 
 
 def register(context: str, policy: ContextPolicy) -> None:
@@ -79,3 +80,14 @@ def on_judged(listener: Listener) -> Listener:
 
 def listeners() -> list[Listener]:
     return list(_LISTENERS)
+
+
+def after_commit(listener: Listener) -> Listener:
+    """Register a coroutine called once the judged submission is committed: for caches,
+    which must not be refreshed from data another transaction cannot see yet."""
+    _AFTER_COMMIT.append(listener)
+    return listener
+
+
+def committed_listeners() -> list[Listener]:
+    return list(_AFTER_COMMIT)

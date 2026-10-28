@@ -107,6 +107,8 @@ class JoinRequest(ApiModel):
 class CellOut(ApiModel):
     label: str
     solved: bool
+    # ICPC: rejected tries before the first accept (a first-try solve is 0; compile errors
+    # do not count). IOI: every submission to the problem.
     attempts: int
     pending: int
     minute: int | None

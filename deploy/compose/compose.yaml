@@ -195,6 +195,7 @@ services:
       JUDGE_TOKEN: ${JUDGE_TOKEN:?run `make env` first}
       WORK_DIR: /tmp/judge
       CACHE_DIR: /var/cache/codejudge
+      CACHE_MAX_BYTES: "1000000000"
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
@@ -203,9 +204,12 @@ services:
     tmpfs:
       # Compiled programs run from here, so it needs exec; it is private to the worker.
       - /tmp:exec,size=1g,uid=10001,gid=10001,mode=0700
-      - /var/cache/codejudge:size=2g,uid=10001,gid=10001,mode=0700
+      - /var/cache/codejudge:size=1200m,uid=10001,gid=10001,mode=0700
     pids_limit: 512
-    mem_limit: 3g
+    # tmpfs pages count against this limit, so it must hold the package cache (1 GB),
+    # scratch space (up to 1 GB), the largest memory limit a problem may set (1 GB by
+    # default, MAX_MEMORY_LIMIT_MB) and the worker itself. Raise it with that maximum.
+    mem_limit: 4g
     cpus: 2
     deploy:
       replicas: ${CJ_JUDGES:-2}

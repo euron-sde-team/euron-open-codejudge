@@ -343,7 +343,10 @@ resource "aws_ecs_task_definition" "this" {
       API_INTERNAL_URL = var.api_url
       WORK_DIR         = "/tmp/judge"
       CACHE_DIR        = "/var/cache/codejudge"
-      LOG_LEVEL        = "INFO"
+      # tmpfs counts against task_memory: keep the cache well inside its tmpfs, and
+      # task_memory >= cache + tmp + the largest problem memory limit + the worker.
+      CACHE_MAX_BYTES = tostring(floor(var.cache_mib * 1048576 * 0.8))
+      LOG_LEVEL       = "INFO"
     }, var.environment) : { name = n, value = v }]
     secrets = var.secrets
     linuxParameters = {

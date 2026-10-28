@@ -76,9 +76,11 @@ def is_private_host(host: str) -> bool:
     return ip.is_private or ip.is_loopback
 
 
-async def resolves_safely(url: str) -> bool:
+async def resolves_safely(url: str, *, allow_private: bool = True) -> bool:
     """True when no address the URL's host resolves to is forbidden (checked at call time,
-    so a DNS name that points at metadata is refused too)."""
+    so a DNS name that points at metadata is refused too). With ``allow_private`` False,
+    private and loopback addresses are refused as well: a public-looking name that
+    resolves inside the network is caught here, not only a private host string."""
     import asyncio
 
     parts = urlsplit(url)
@@ -92,5 +94,7 @@ async def resolves_safely(url: str) -> bool:
     for info in infos:
         ip = as_ip(str(info[4][0]))
         if ip is not None and is_forbidden_ip(ip):
+            return False
+        if ip is not None and not allow_private and (ip.is_private or ip.is_loopback):
             return False
     return True

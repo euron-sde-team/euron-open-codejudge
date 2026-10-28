@@ -121,3 +121,26 @@ def test_custom_checker_exit_codes(protocol: str, code: int | None, verdict: boo
 
 def test_message_is_trimmed() -> None:
     assert checkers.message("  " + "x" * 500 + "\n") == "x" * checkers.MAX_MESSAGE
+
+
+def test_tokens_match_split_for_any_chunking(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Linear tokenizing across chunk boundaries gives exactly what bytes.split gives."""
+    import random
+
+    rng = random.Random(1)
+    f = tmp_path / "f"
+    for _ in range(200):
+        data = bytes(rng.choice(b"ab \n\t") for _ in range(rng.randint(0, 120)))
+        f.write_bytes(data)
+        for size in (1, 2, 3, 7, 64):
+            monkeypatch.setattr(checkers, "CHUNK", size)
+            assert list(checkers.tokens(f)) == data.split()
+
+
+def test_a_huge_single_token_is_wrong_at_once(tmp_path: Path) -> None:
+    (tmp_path / "a").write_bytes(b"x\n")
+    (tmp_path / "o").write_bytes(b"x" * (checkers.MAX_TOKEN_BYTES * 3))
+    check = checkers.compare_tokens(tmp_path / "a", tmp_path / "o", CheckerSpec())
+    assert not check.ok and "longer than" in check.message

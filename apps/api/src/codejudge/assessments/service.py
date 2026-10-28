@@ -539,7 +539,9 @@ async def candidate_view(session: AsyncSession, inv: Invitation, who: Submitter)
                 points=ap.points,
                 best_score=best[0] if best else None,
                 best_verdict=best[1] if best else None,
-                problem=await problems.detail(session, p, who, check_access=False),
+                problem=await problems.detail(
+                    session, p, who, check_access=False, with_counters=who.is_staff
+                ),
             )
         )
     left = (

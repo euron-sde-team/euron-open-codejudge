@@ -87,3 +87,19 @@ async def test_students_see_only_their_own_progress(stack: Stack) -> None:
     assert (await b.get(f"/api/v1/analytics/users/{a_id}")).status_code == 404
     assert (await b.get("/api/v1/analytics/overview")).status_code == 403
     assert (await stack.client.get(f"/api/v1/analytics/users/{a_id}")).json()["solved"] == 1
+
+
+async def test_active_people_are_counted_once_across_problems_and_languages(stack: Stack) -> None:
+    """One person on two problems in two languages is one active person, not four (each
+    rollup row counts the people of one day, problem and language)."""
+    await make_problem(stack)
+    await make_problem(stack, "sum-two")
+    student = await stack.user()
+    for problem in ("sum", "sum-two"):
+        for language in ("python3", "cpp17"):
+            resp = await student.post(
+                "/api/v1/submissions", json={"problem": problem, "language": language, "source": AC}
+            )
+            await stack.verdict(resp.json()["id"])
+    o = await stack.ok("GET", "/api/v1/analytics/overview")
+    assert o["submissions"] == 4 and o["active_users"] == 1

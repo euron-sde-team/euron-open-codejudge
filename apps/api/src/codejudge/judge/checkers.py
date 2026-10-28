@@ -30,17 +30,49 @@ class Check:
     message: str = ""
 
 
+# No expected token is this long; a program printing one is wrong, and stopping here keeps
+# a 60 MB "token" from costing the worker time outside the program's CPU limit.
+MAX_TOKEN_BYTES = 1 << 20
+
+
+class TokenTooLongError(Exception):
+    pass
+
+
 def tokens(path: Path) -> Iterator[bytes]:
-    """Whitespace separated tokens of a file, read in chunks."""
-    rest = b""
+    """Whitespace separated tokens of a file, read in chunks, in linear time. A token that
+    spans chunks is carried over in pieces; one longer than MAX_TOKEN_BYTES raises."""
+    pending: list[bytes] = []
+    pending_len = 0
     with path.open("rb") as f:
         while chunk := f.read(CHUNK):
-            parts = (rest + chunk).split()
-            # A token may continue in the next chunk unless the chunk ended in whitespace.
-            rest = b"" if chunk[-1:].isspace() else (parts.pop() if parts else b"")
+            parts = chunk.split()
+            if not parts:
+                # All whitespace: whatever was pending is complete.
+                if pending:
+                    yield b"".join(pending)
+                    pending, pending_len = [], 0
+                continue
+            starts_inside = not chunk[:1].isspace()
+            ends_inside = not chunk[-1:].isspace()
+            if pending:
+                if starts_inside:
+                    pending.append(parts.pop(0))
+                    pending_len += len(pending[-1])
+                    if not parts and ends_inside:
+                        if pending_len > MAX_TOKEN_BYTES:
+                            raise TokenTooLongError
+                        continue  # the token goes on in the next chunk
+                yield b"".join(pending)
+                pending, pending_len = [], 0
+            if ends_inside and parts:
+                last = parts.pop()
+                pending, pending_len = [last], len(last)
             yield from parts
-    if rest:
-        yield rest
+            if pending_len > MAX_TOKEN_BYTES:
+                raise TokenTooLongError
+    if pending:
+        yield b"".join(pending)
 
 
 def _show(token: bytes) -> str:
@@ -62,6 +94,13 @@ def _numbers_close(expected: bytes, got: bytes, spec: CheckerSpec) -> bool:
 
 
 def compare_tokens(answer: Path, output: Path, spec: CheckerSpec) -> Check:
+    try:
+        return _compare_tokens(answer, output, spec)
+    except TokenTooLongError:
+        return Check(False, f"the output has a token longer than {MAX_TOKEN_BYTES} bytes")
+
+
+def _compare_tokens(answer: Path, output: Path, spec: CheckerSpec) -> Check:
     expected, got = tokens(answer), tokens(output)
     position = 0
     while True:

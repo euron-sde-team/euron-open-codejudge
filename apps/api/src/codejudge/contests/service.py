@@ -607,7 +607,7 @@ async def problem(session: AsyncSession, who: Submitter, c: Contest, label: str)
     if cp is None:
         raise NotFoundError(f"No problem {label} in this contest")
     p = await problems.get(session, cp.problem_id)
-    return await problems.detail(session, p, who, check_access=False)
+    return await problems.detail(session, p, who, check_access=False, with_counters=who.is_staff)
 
 
 # ── the submission policy and the judged listener ────────────────────────────────────
@@ -654,7 +654,7 @@ class ContestPolicy:
 contexts.register("contest", ContestPolicy())
 
 
-@contexts.on_judged
+@contexts.after_commit
 async def _invalidate(container: Container, session: AsyncSession, s: Submission) -> None:
     if s.context == "contest" and s.context_id is not None:
         await bump(container, s.context_id)

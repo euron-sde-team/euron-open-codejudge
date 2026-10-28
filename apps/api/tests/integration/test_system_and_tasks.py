@@ -213,3 +213,30 @@ async def test_submission_lists_filter_and_stay_private(stack: Stack) -> None:
     assert (await stack.ok("GET", "/api/v1/submissions?mine=true&context=practice"))["total"] == 0
     assert (await stack.ok("GET", "/api/v1/submissions?context=practice"))["total"] >= 3
     assert (await ada.get(f"/api/v1/submissions/{ids[2]}")).status_code == 404
+
+
+async def test_only_live_judges_count_and_gone_ones_are_forgotten(
+    stack: Stack, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A judge replaced by a new container leaves its name in the consumer group; it must
+    not show as online, and the queue task forgets it."""
+    import redis.asyncio as aioredis
+
+    from codejudge.core import queue as queue_module
+    from tests.integration.conftest import GROUP, STREAM, TEST_REDIS
+
+    r = aioredis.Redis.from_url(TEST_REDIS, decode_responses=True)
+    await r.xgroup_createconsumer(STREAM, GROUP, "gone-judge")
+    container = Container.build(stack.settings)
+    try:
+        names = {c["name"] for c in await r.xinfo_consumers(STREAM, GROUP)}
+        assert "gone-judge" in names
+        monkeypatch.setattr(queue_module, "ONLINE_IDLE_MS", -1)
+        assert (await container.queue.depth())["workers"] == 0
+        monkeypatch.setattr(queue_module, "STALE_IDLE_MS", -1)
+        assert await container.queue.prune_consumers() >= 1
+        names = {c["name"] for c in await r.xinfo_consumers(STREAM, GROUP)}
+        assert "gone-judge" not in names
+    finally:
+        await container.close()
+        await r.aclose()

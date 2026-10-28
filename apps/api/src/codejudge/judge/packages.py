@@ -88,9 +88,11 @@ class PackageCache:
             if (target / ".complete").exists():
                 os.utime(target)
                 return target
+            # Make room first, so a new package never fails for space the cache could free.
+            self._evict(keep=sha256, room=self.max_bytes // 4)
             download = self.root / f".{sha256}.zip"
-            self._fetch(sha256, download)
             try:
+                self._fetch(sha256, download)
                 got = sha256_file(download)
                 if got != sha256:
                     raise PackageError(f"package checksum mismatch: wanted {sha256}, got {got}")
@@ -106,12 +108,20 @@ class PackageCache:
             self._evict(keep=sha256)
             return target
 
-    def _evict(self, keep: str) -> None:
+    def _evict(self, keep: str, room: int = 0) -> None:
+        """Drop least recently used packages until the cache, plus ``room`` for what is
+        about to arrive, fits the budget. Leftovers of interrupted downloads go too."""
+        for leftover in self.root.glob(".*"):
+            if leftover.name != f".{keep}.zip" and leftover.name != f".{keep}.tmp":
+                if leftover.is_dir():
+                    shutil.rmtree(leftover, ignore_errors=True)
+                else:
+                    leftover.unlink(missing_ok=True)
         entries = [p for p in self.root.iterdir() if p.is_dir() and not p.name.startswith(".")]
         sizes = {p: _size(p) for p in entries}
         total = sum(sizes.values())
         for p in sorted(entries, key=lambda e: e.stat().st_mtime):
-            if total <= self.max_bytes:
+            if total + room <= self.max_bytes:
                 break
             if p.name == keep:
                 continue

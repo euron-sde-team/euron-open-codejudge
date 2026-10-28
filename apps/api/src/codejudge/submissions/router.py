@@ -173,37 +173,64 @@ async def submission_events(
     session: SessionDep,
     container: ContainerDep,
 ) -> StreamingResponse:
-    """Server-sent events until the verdict: ``judging`` updates, then ``done``."""
+    """Server-sent events until the verdict: ``judging`` updates, then ``done``.
+
+    Events arrive through a subscription read by a separate task, so a quiet stream never
+    disturbs it. Every few quiet seconds the stream also reads the submission itself, so a
+    verdict published before the subscription started is still delivered and the stream
+    always ends."""
     s = await service.get(session, submission_id)
     if not await service.visible(session, who, s):
         raise NotFoundError("Submission not found")
-    first = json.dumps(
-        {"status": s.status, "verdict": s.verdict, "progress": s.progress, "score": s.score}
-    )
+    # An ICPC contest or an interview shows the verdict only: no score, no test number.
+    hide = s.hide_test_details and not who.is_staff
+
+    def event(status: str, verdict: str, progress: str | None, score: float) -> str:
+        payload: dict[str, object] = {"status": status, "verdict": verdict}
+        if not hide:
+            payload |= {"progress": progress, "score": score}
+        return f"data: {json.dumps(payload)}\n\n"
+
+    first = event(s.status, s.verdict, s.progress, s.score)
     done = s.status == "done"
     await session.close()  # do not hold a database connection for the life of the stream
 
     async def stream() -> AsyncIterator[str]:
-        yield f"data: {first}\n\n"
+        yield first
         if done:
             return
-        listener = container.queue.listen(str(submission_id))
+        inbox: asyncio.Queue[str] = asyncio.Queue()
+
+        async def pump() -> None:
+            async for data in container.queue.listen(str(submission_id)):
+                await inbox.put(data)
+
+        reader = asyncio.create_task(pump())
         try:
             while True:
                 try:
-                    data = await asyncio.wait_for(anext(listener), timeout=15)
+                    data = await asyncio.wait_for(inbox.get(), timeout=5)
                 except TimeoutError:
                     if await request.is_disconnected():
                         return
+                    async with container.db.sessionmaker() as db:
+                        row = await db.get(Submission, submission_id)
+                    if row is not None and row.status == "done":
+                        yield event(row.status, row.verdict, None, row.score)
+                        return
                     yield ": keep-alive\n\n"
                     continue
-                yield f"data: {data}\n\n"
-                if json.loads(data).get("status") == "done":
+                payload = json.loads(data)
+                yield event(
+                    payload.get("status", "judging"),
+                    payload.get("verdict", "JUDGING"),
+                    payload.get("progress"),
+                    float(payload.get("score", 0.0)),
+                )
+                if payload.get("status") == "done":
                     return
-        except StopAsyncIteration:
-            return
         finally:
-            await listener.aclose()  # type: ignore[attr-defined]
+            reader.cancel()
 
     return StreamingResponse(
         stream(),

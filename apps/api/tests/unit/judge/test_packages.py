@@ -133,3 +133,20 @@ def test_test_files_resolve_inside_the_package(tmp_path: Path) -> None:
 def test_sha256_of_a_file(tmp_path: Path) -> None:
     (tmp_path / "f").write_bytes(b"abc")
     assert packages.sha256_file(tmp_path / "f") == hashlib.sha256(b"abc").hexdigest()
+
+
+def test_a_failed_download_leaves_nothing_behind_and_space_is_made_first(tmp_path: Path) -> None:
+    from codejudge.judge.packages import PackageCache
+
+    def broken(sha: str, dest: Path) -> None:
+        dest.write_bytes(b"partial")
+        raise OSError("connection reset")
+
+    cache = PackageCache(tmp_path / "cache", 10_000, broken)
+    stale = tmp_path / "cache" / ("b" * 64)
+    stale.mkdir()
+    (stale / "data").write_bytes(b"x" * 9_000)
+    with pytest.raises(OSError, match="connection reset"):
+        cache.get("a" * 64)
+    leftovers = [p.name for p in (tmp_path / "cache").iterdir()]
+    assert leftovers == [], leftovers  # the partial download is gone, the old package evicted

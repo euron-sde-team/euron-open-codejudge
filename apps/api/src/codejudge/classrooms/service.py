@@ -87,8 +87,18 @@ async def role_in(
     return role
 
 
+async def role_of(session: AsyncSession, class_id: uuid.UUID, who: Submitter) -> str | None:
+    """The person's role in the class as it counts now: a teacher membership confers
+    teaching only while the person is still staff, so demoting someone to student takes
+    away their classes' gradebooks, rosters and assignments too."""
+    role = await role_in(session, class_id, who.user_id)
+    if role == "teacher" and not who.is_staff:
+        return "student"
+    return role
+
+
 async def can_manage(session: AsyncSession, c: Classroom, who: Submitter) -> bool:
-    return who.role == "admin" or await role_in(session, c.id, who.user_id) == "teacher"
+    return who.role == "admin" or await role_of(session, c.id, who) == "teacher"
 
 
 async def require_manager(session: AsyncSession, c: Classroom, who: Submitter) -> None:
@@ -101,7 +111,7 @@ async def require_member(session: AsyncSession, c: Classroom, who: Submitter) ->
     a class's existence does not leak to people outside it."""
     if who.role == "admin":
         return "teacher"
-    role = await role_in(session, c.id, who.user_id)
+    role = await role_of(session, c.id, who)
     if role is None:
         raise NotFoundError("Class not found")
     return role
@@ -173,7 +183,7 @@ async def list_classes(
 async def class_out(session: AsyncSession, c: Classroom, who: Submitter) -> ClassOut:
     role = await require_member(session, c, who)
     counts = (await _counts(session, [c.id]))[c.id]
-    mine = await role_in(session, c.id, who.user_id)
+    mine = await role_of(session, c.id, who)
     return _class_out(c, mine, counts, role == "teacher")
 
 
@@ -470,13 +480,24 @@ async def marks(
     points: dict[uuid.UUID, float],
     user_id: uuid.UUID | None = None,
 ) -> dict[tuple[uuid.UUID, uuid.UUID], Mark]:
-    """Best mark per (student, problem) on this assignment, in one query."""
+    """Best mark per (student, problem) on this assignment, in two queries. Lateness is
+    decided here, against each student's due time as it is now, so an extension granted
+    after the fact also lifts the penalty on work already handed in."""
+    extensions = dict(
+        (
+            await session.execute(
+                select(AssignmentExtension.user_id, AssignmentExtension.due_at).where(
+                    AssignmentExtension.assignment_id == a.id
+                )
+            )
+        ).all()
+    )
     query = select(
         Submission.user_id,
         Submission.problem_id,
         Submission.score,
         Submission.max_score,
-        Submission.late,
+        Submission.created_at,
         Submission.verdict,
     ).where(
         Submission.context == "assignment",
@@ -487,9 +508,10 @@ async def marks(
     if user_id is not None:
         query = query.where(Submission.user_id == user_id)
     out: dict[tuple[uuid.UUID, uuid.UUID], Mark] = {}
-    for uid, pid, score, max_score, late, verdict in (await session.execute(query)).all():
+    for uid, pid, score, max_score, created_at, verdict in (await session.execute(query)).all():
         if uid is None or pid not in points:
             continue
+        late = created_at > extensions.get(uid, a.due_at)
         value = effective(a, points[pid], score, max_score, late)
         key = (uid, pid)
         current = out.get(key)
@@ -663,28 +685,28 @@ async def gradebook(session: AsyncSession, a: Assignment) -> Gradebook:
 
 
 def gradebook_csv(book: Gradebook) -> str:
+    """Every cell is neutralised, not only the free-text ones: an email address can start
+    with "=" too, and a spreadsheet would run it as a formula."""
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(
-        [
-            "name",
-            "email",
-            *[f"{p.slug} ({p.points:g})" for p in book.problems],
-            f"total ({book.total_points:g})",
-        ]
-    )
+    header = [
+        "name",
+        "email",
+        *[f"{p.slug} ({p.points:g})" for p in book.problems],
+        f"total ({book.total_points:g})",
+    ]
+    writer.writerow([_csv_safe(cell) for cell in header])
     for row in book.rows:
-        writer.writerow(
-            [
-                _csv_safe(row.name),
-                row.email,
-                *[
-                    "" if c.score is None else f"{c.score:g}{' (late)' if c.late else ''}"
-                    for c in row.cells
-                ],
-                f"{row.total:g}",
-            ]
-        )
+        cells = [
+            row.name,
+            row.email,
+            *[
+                "" if c.score is None else f"{c.score:g}{' (late)' if c.late else ''}"
+                for c in row.cells
+            ],
+            f"{row.total:g}",
+        ]
+        writer.writerow([_csv_safe(cell) for cell in cells])
     return buf.getvalue()
 
 
@@ -706,7 +728,7 @@ class AssignmentPolicy:
         if who.is_staff and await role_in(session, a.class_id, who.user_id) != "student":
             return Admission()
         c = await session.get(Classroom, a.class_id)
-        role = await role_in(session, a.class_id, who.user_id)
+        role = await role_of(session, a.class_id, who)
         if c is None or role is None:
             raise PermissionDeniedError("You are not in this class", code="not_a_member")
         if role == "teacher":
@@ -729,7 +751,7 @@ class AssignmentPolicy:
 
     async def can_view(self, session: AsyncSession, who: Submitter, submission: Submission) -> bool:
         a = await session.get(Assignment, submission.context_id) if submission.context_id else None
-        return a is not None and await role_in(session, a.class_id, who.user_id) == "teacher"
+        return a is not None and await role_of(session, a.class_id, who) == "teacher"
 
 
 contexts.register("assignment", AssignmentPolicy())

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 import re
@@ -12,6 +13,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from codejudge.core.config import Settings
 from codejudge.core.logs import request_id_var
+from codejudge.core.security import decode_session
 
 log = logging.getLogger("codejudge.http")
 
@@ -75,8 +77,23 @@ _BODY_METHODS = {"POST", "PUT", "PATCH"}
 _PACKAGE_PATH = re.compile(r"^/api/v1/problems/(import|[0-9a-f-]{36}/(package|versions))$")
 
 
-def _has_session(headers: dict[bytes, bytes]) -> bool:
-    return b"authorization" in headers or b"cj_session=" in headers.get(b"cookie", b"")
+def _bearer(headers: dict[bytes, bytes]) -> str:
+    value = headers.get(b"authorization", b"").decode("latin-1")
+    return value[7:].strip() if value.lower().startswith("bearer ") else ""
+
+
+def _is_staff_session(headers: dict[bytes, bytes], secret: str) -> bool:
+    """A genuine (signed, unexpired) staff or admin session token. Checked without the
+    database: the route still authorizes the request fully; this only decides whether a
+    large body may be read at all, so forged or student tokens stay at the small limit."""
+    token = _bearer(headers)
+    if not token:
+        for part in headers.get(b"cookie", b"").decode("latin-1").split(";"):
+            name, _, value = part.strip().partition("=")
+            if name == "cj_session":
+                token = value
+    claims = decode_session(token, secret) if token else None
+    return claims is not None and claims.role in ("staff", "admin")
 
 
 class BodySizeLimitMiddleware:
@@ -98,13 +115,14 @@ class BodySizeLimitMiddleware:
         limit = self.settings.max_body_bytes
         path = scope.get("path", "")
         headers = dict(scope.get("headers") or [])
-        if path.startswith("/internal/"):
-            # A judge result with many tests can outgrow the dashboard's limit; only the
-            # judge workers, holding the judge token, reach these paths.
+        if path.startswith("/internal/") and hmac.compare_digest(
+            _bearer(headers).encode(), self.settings.judge_token.encode()
+        ):
+            # A judge result with many tests can outgrow the dashboard's limit: only the
+            # judge workers, holding the judge token, get the larger one.
             limit = self.settings.max_internal_body_bytes
-        elif _PACKAGE_PATH.match(path) and _has_session(headers):
-            # Test packages are large by nature. Only staff reach these routes (checked by
-            # the route); requiring a session here keeps anonymous clients at the small limit.
+        elif _PACKAGE_PATH.match(path) and _is_staff_session(headers, self.settings.session_secret):
+            # Test packages are large by nature; only a genuine staff session may send one.
             limit = self.settings.max_package_bytes
         length = headers.get(b"content-length", b"")
         if length.isdigit() and int(length) > limit:

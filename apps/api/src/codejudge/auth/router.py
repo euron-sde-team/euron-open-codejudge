@@ -5,11 +5,17 @@ from redis.exceptions import RedisError
 
 from codejudge.audit.service import Actor, audit
 from codejudge.auth import service
-from codejudge.auth.dependencies import SESSION_COOKIE, CurrentUser, revoke, session_token
+from codejudge.auth.dependencies import (
+    SESSION_COOKIE,
+    CurrentUser,
+    current_user,
+    revoke,
+    session_token,
+)
 from codejudge.auth.schemas import LoginRequest, PasswordChange, SignInOut, UserOut
 from codejudge.core.deps import ContainerDep, SessionDep, client_ip
-from codejudge.core.errors import RateLimitedError
-from codejudge.core.schemas import Ack
+from codejudge.core.errors import AuthenticationError, RateLimitedError
+from codejudge.core.schemas import Ack, ApiModel
 from codejudge.core.security import decode_session, issue_session
 from codejudge.limits.limiter import LimitDecision
 from codejudge.users.models import User
@@ -81,6 +87,26 @@ async def logout(
         await session.commit()
     response.delete_cookie(SESSION_COOKIE, path="/")
     return Ack(message="Signed out")
+
+
+class SessionOut(ApiModel):
+    user: UserOut | None
+
+
+@router.get("/session", response_model=SessionOut, summary="Who is signed in, if anyone")
+async def current_session(
+    request: Request, container: ContainerDep, session: SessionDep
+) -> SessionOut:
+    """For pages anyone may open (the problem list): a signed-out visitor is a normal
+    answer here (200 with no user), not an error. ``/me`` stays strict (401) for API
+    clients that require a session."""
+    if not session_token(request)[0]:
+        return SessionOut(user=None)
+    try:
+        user = await current_user(request, container, session)
+    except AuthenticationError:
+        return SessionOut(user=None)
+    return SessionOut(user=UserOut.model_validate(user))
 
 
 @router.get("/me", response_model=UserOut, summary="The signed-in user")

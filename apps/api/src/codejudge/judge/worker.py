@@ -20,7 +20,6 @@ import logging
 import signal
 import socket
 import threading
-import time
 from dataclasses import dataclass
 from pathlib import Path
 from types import FrameType
@@ -73,21 +72,23 @@ class ApiClient:
                 for chunk in resp.iter_bytes(1 << 20):
                     out.write(chunk)
 
-    def post_result(self, result: JudgeResult) -> None:
+    def post_result(self, result: JudgeResult, stopping: threading.Event) -> bool:
+        """Post until the API takes it. An outage must not turn a finished judgement into
+        an internal error, so this keeps trying (the caller keeps the lease alive) and
+        gives up only when the worker is told to stop; the job is then redelivered."""
         delay = 1.0
-        for attempt in range(1, 7):
+        while True:
             try:
                 resp = self.http.post("/internal/judge/results", content=result.model_dump_json())
                 # 409: a result for this job was already accepted (another attempt won).
                 if resp.status_code in (200, 202, 409):
-                    return
+                    return True
                 resp.raise_for_status()
             except httpx.HTTPError as exc:
-                if attempt == 6:
-                    raise
                 log.warning("posting result for %s failed (%s); retrying", result.job_id, exc)
-                time.sleep(delay)
-                delay = min(delay * 2, 30)
+            if stopping.wait(delay):
+                return False
+            delay = min(delay * 2, 30)
 
     def heartbeat(self, beat: Heartbeat) -> None:
         # Progress is informational: the lease does not depend on it, so failures are ignored.
@@ -156,17 +157,16 @@ class Worker:
             log.error(
                 "job %s failed %d times; reporting an internal error", job.job_id, job.attempt - 1
             )
-            self.api.post_result(
-                JudgeResult(
-                    job_id=job.job_id,
-                    attempt=job.attempt,
-                    submission_id=job.submission_id,
-                    worker=self.name,
-                    verdict=Verdict.IE,
-                    error=f"the judge gave up after {self.max_attempts} attempts",
-                )
+            gave_up = JudgeResult(
+                job_id=job.job_id,
+                attempt=job.attempt,
+                submission_id=job.submission_id,
+                worker=self.name,
+                verdict=Verdict.IE,
+                error=f"the judge gave up after {self.max_attempts} attempts",
             )
-            self.ack(msg_id)
+            if self.api.post_result(gave_up, self.stopping):
+                self.ack(msg_id)
             return
 
         state = _Progress()
@@ -202,11 +202,25 @@ class Worker:
         try:
             with DURATION.time():
                 result = self.judge.judge(job, progress)
+            JUDGED.labels(result.verdict.value).inc()
+            if result.verdict == Verdict.IE and job.attempt < self.max_attempts:
+                # Possibly transient (a sandbox that failed to start, a full disk, a bad
+                # download): leave it unacknowledged so the lease hands it to a worker again.
+                log.warning(
+                    "internal error on %s (attempt %d): %s",
+                    job.submission_id,
+                    job.attempt,
+                    result.error,
+                )
+                stop.set()
+                return
+            # The lease stays renewed while posting: an API outage does not count as an
+            # attempt, and the finished result is posted, never judged again.
+            if not self.api.post_result(result, self.stopping):
+                return
         finally:
             stop.set()
             beater.join(timeout=5)
-        JUDGED.labels(result.verdict.value).inc()
-        self.api.post_result(result)
         self.ack(msg_id)
         log.info("judged %s: %s in %d ms", job.submission_id, result.verdict, result.judged_ms)
 

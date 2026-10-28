@@ -143,3 +143,17 @@ async def test_cookie_sessions_need_the_csrf_header_for_changes(stack: Stack) ->
     assert allowed.status_code == 201
     await anon.aclose()
     await browser.aclose()
+
+
+async def test_the_session_endpoint_answers_signed_out_visitors_without_an_error(
+    stack: Stack,
+) -> None:
+    async with stack.anonymous() as anon:
+        resp = await anon.get("/api/v1/auth/session")
+        assert resp.status_code == 200 and resp.json() == {"user": None}
+        resp = await anon.get(
+            "/api/v1/auth/session", headers={"authorization": "Bearer not-a-token"}
+        )
+        assert resp.status_code == 200 and resp.json() == {"user": None}
+    mine = await stack.ok("GET", "/api/v1/auth/session")
+    assert mine["user"]["email"] == "admin@example.test"

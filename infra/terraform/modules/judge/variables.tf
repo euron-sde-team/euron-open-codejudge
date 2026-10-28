@@ -134,7 +134,7 @@ variable "task_cpu" {
 variable "task_memory" {
   description = "Memory per judge task in MiB: the largest problem memory limit plus compiler and worker headroom."
   type        = number
-  default     = 3072
+  default     = 4096
 }
 
 variable "tmp_mib" {
@@ -146,7 +146,7 @@ variable "tmp_mib" {
 variable "cache_mib" {
   description = "tmpfs size for the unpacked test package cache in MiB."
   type        = number
-  default     = 2048
+  default     = 1200
 }
 
 variable "max_processes" {

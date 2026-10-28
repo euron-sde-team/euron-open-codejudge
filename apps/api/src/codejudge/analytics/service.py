@@ -148,7 +148,6 @@ async def overview(session: AsyncSession, days: int = 30) -> Overview:
         await session.execute(
             select(
                 _sum(StatsDaily.submissions).label("submissions"),
-                _sum(StatsDaily.users).label("users"),
                 *_verdict_sums(),
             ).where(recent)
         )
@@ -183,6 +182,16 @@ async def overview(session: AsyncSession, days: int = 30) -> Overview:
         .group_by(StatsDaily.language)
         .order_by(submissions_sum.desc())
     )
+    # Distinct people over the whole window: each rollup row counts the people of one day,
+    # problem and language, and summing those would count the same person many times.
+    start = datetime.combine(since, time.min, tzinfo=UTC)
+    active = await session.scalar(
+        select(func.count(func.distinct(Submission.user_id))).where(
+            Submission.created_at >= start,
+            Submission.context.in_(COUNTED),
+            Submission.user_id.is_not(None),
+        )
+    )
     submissions = int(totals.submissions)
     accepted = int(totals.accepted)
     return Overview(
@@ -190,7 +199,7 @@ async def overview(session: AsyncSession, days: int = 30) -> Overview:
         submissions=submissions,
         accepted=accepted,
         acceptance=_rate(accepted, submissions),
-        active_users=int(totals.users),
+        active_users=int(active or 0),
         daily=_series(daily, since, until),
         verdicts=_mix(totals),
         top_problems=[

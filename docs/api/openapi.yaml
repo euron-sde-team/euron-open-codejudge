@@ -50,6 +50,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Ack'
+  /api/v1/auth/session:
+    get:
+      tags:
+      - auth
+      summary: Who is signed in, if anyone
+      description: 'For pages anyone may open (the problem list): a signed-out visitor is a normal
+
+        answer here (200 with no user), not an error. ``/me`` stays strict (401) for API
+
+        clients that require a session.'
+      operationId: current_session_api_v1_auth_session_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionOut'
   /api/v1/auth/me:
     get:
       tags:
@@ -903,7 +921,16 @@ paths:
       tags:
       - submissions
       summary: Submission Events
-      description: 'Server-sent events until the verdict: ``judging`` updates, then ``done``.'
+      description: 'Server-sent events until the verdict: ``judging`` updates, then ``done``.
+
+
+        Events arrive through a subscription read by a separate task, so a quiet stream never
+
+        disturbs it. Every few quiet seconds the stream also reads the submission itself, so a
+
+        verdict published before the subscription started is still delivered and the stream
+
+        always ends.'
       operationId: submission_events_api_v1_submissions__submission_id__events_get
       parameters:
       - name: submission_id
@@ -6447,6 +6474,16 @@ components:
       - problems
       - rows
       title: Scoreboard
+    SessionOut:
+      properties:
+        user:
+          anyOf:
+          - $ref: '#/components/schemas/UserOut'
+          - type: 'null'
+      type: object
+      required:
+      - user
+      title: SessionOut
     SettingsUpdate:
       properties:
         site_name:

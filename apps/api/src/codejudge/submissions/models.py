@@ -25,6 +25,8 @@ class Submission(Base):
         Index("ix_submissions_user_created", "user_id", "created_at"),
         Index("ix_submissions_problem_created", "problem_id", "created_at"),
         Index("ix_submissions_context", "context", "context_id", "created_at"),
+        # Time windows across everyone (active people in analytics, run cleanup).
+        Index("ix_submissions_created", "created_at"),
         Index("ix_submissions_status", "status", postgresql_where="status <> 'done'"),
     )
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=new_id)

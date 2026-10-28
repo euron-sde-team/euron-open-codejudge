@@ -634,6 +634,7 @@ def upgrade() -> None:
     op.create_index(
         "ix_submissions_user_created", "submissions", ["user_id", "created_at"], unique=False
     )
+    op.create_index("ix_submissions_created", "submissions", ["created_at"], unique=False)
     op.create_table(
         "plagiarism_pairs",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -665,6 +666,7 @@ def downgrade() -> None:
     op.drop_constraint("problems_current_version_id_fkey", "problems", type_="foreignkey")
     op.drop_index(op.f("ix_plagiarism_pairs_run_id"), table_name="plagiarism_pairs")
     op.drop_table("plagiarism_pairs")
+    op.drop_index("ix_submissions_created", table_name="submissions")
     op.drop_index("ix_submissions_user_created", table_name="submissions")
     op.drop_index(
         "ix_submissions_status", table_name="submissions", postgresql_where="status <> 'done'"
