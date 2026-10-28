@@ -90,6 +90,11 @@ async def admin() -> httpx.AsyncClient:
 
 async def ok(c: httpx.AsyncClient, method: str, path: str, json: Any = None) -> Any:
     resp = await c.request(method, path, json=json)
+    for _ in range(10):  # the per-person submission limit says how long to wait
+        if resp.status_code != 429:
+            break
+        await asyncio.sleep(float(resp.headers.get("retry-after", "5")))
+        resp = await c.request(method, path, json=json)
     assert resp.status_code < 300, f"{method} {path}: {resp.status_code} {resp.text[:300]}"
     return resp.json() if resp.content else None
 
@@ -117,7 +122,7 @@ async def problem(c: httpx.AsyncClient, *, time_limit_ms: int = 1000) -> str:
             "title": "Stack Sum",
             "statement_md": "Add.",
             "time_limit_ms": time_limit_ms,
-            "visibility": "private",
+            "visibility": "public",
         },
     )
     tests = [{"name": "sample/1", "input": "1 2\n", "answer": "3\n"}] + [
@@ -140,6 +145,36 @@ async def problem(c: httpx.AsyncClient, *, time_limit_ms: int = 1000) -> str:
     return slug
 
 
+async def remove(c: httpx.AsyncClient, slug: str) -> None:
+    """Tests leave nothing behind in the demo data."""
+    p = await ok(c, "GET", f"/api/v1/problems/{slug}")
+    await c.delete(f"/api/v1/problems/{p['id']}")
+
+
+async def sign_in(email: str, password: str) -> httpx.AsyncClient:
+    client = httpx.AsyncClient(base_url=API, timeout=60, headers={"x-codejudge-csrf": "1"})
+    for _ in range(10):  # many sign-ins at once meet the login limit: wait as it says
+        resp = await client.post("/api/v1/auth/login", json={"email": email, "password": password})
+        if resp.status_code != 429:
+            break
+        await asyncio.sleep(float(resp.headers.get("retry-after", "5")))
+    resp.raise_for_status()
+    client.headers["authorization"] = f"Bearer {resp.json()['session_token']}"
+    return client
+
+
+async def students(c: httpx.AsyncClient, n: int) -> list[httpx.AsyncClient]:
+    """n people, signed in: a burst comes from a class, not from one account."""
+    password = demo_password()
+    out = []
+    for _ in range(n):
+        email = f"stack-{uuid.uuid4().hex[:10]}@example.test"
+        body = {"email": email, "name": "Stack Tester", "role": "student", "password": password}
+        await ok(c, "POST", "/api/v1/users", body)
+        out.append(await sign_in(email, password))
+    return out
+
+
 SOURCES = {
     "cpp_ok": '#include <iostream>\nint main(){long long a,b;std::cin>>a>>b;std::cout<<a+b<<"\\n";}\n',
     "py_ok": "a, b = map(int, input().split())\nprint(a + b)\n",
@@ -149,7 +184,7 @@ SOURCES = {
     "cpp_tle": "int main(){volatile unsigned long long x=0;for(;;)x++;}\n",
     "py_bomb": "import os\nwhile True:\n    try:\n        os.fork()\n    except OSError:\n        pass\n",
     "py_net": "import socket\ntry:\n    socket.create_connection(('redis', 6379), timeout=1)\n    print('ESCAPED')\nexcept OSError:\n    a, b = map(int, input().split())\n    print(a + b)\n",
-    "py_slow_ok": "import time\ns = 0\nfor i in range(40_000_000):\n    s += i\na, b = map(int, input().split())\nprint(a + b)\n",
+    "py_slow_ok": "import time\ns = 0\nfor i in range(70_000_000):\n    s += i\na, b = map(int, input().split())\nprint(a + b)\n",
 }
 
 
@@ -169,6 +204,7 @@ async def test_the_five_minute_path_gives_a_real_verdict() -> None:
             {"problem": slug, "language": language, "source": SOURCES[key]},
         )
         assert (await judged(c, s["id"]))["verdict"] == want, key
+    await remove(c, slug)
     await c.aclose()
 
 
@@ -179,10 +215,11 @@ async def test_a_burst_with_hostile_programs_gets_every_verdict_right() -> None:
     plan = [("cpp_ok", "cpp17", "AC"), ("py_ok", "python3", "AC"), ("py_wa", "python3", "WA"),
             ("cpp_tle", "cpp17", "TLE"), ("py_bomb", "python3", None), ("py_net", "python3", "AC"),
             ("java_ok", "java21", "AC"), ("js_ok", "javascript", "AC")] * 4  # fmt: skip
+    people = await students(c, 8)
     sent = []
-    for key, language, want in plan:
+    for k, (key, language, want) in enumerate(plan):
         s = await ok(
-            c,
+            people[k % len(people)],
             "POST",
             "/api/v1/submissions",
             {"problem": slug, "language": language, "source": SOURCES[key]},
@@ -194,6 +231,9 @@ async def test_a_burst_with_hostile_programs_gets_every_verdict_right() -> None:
             assert got["verdict"] in ("TLE", "RE"), (key, got["verdict"])
         else:
             assert got["verdict"] == want, (key, got["verdict"], got.get("error"))
+    await remove(c, slug)
+    for person in people:
+        await person.aclose()
     await c.aclose()
 
 
@@ -221,8 +261,9 @@ async def test_a_worker_killed_mid_job_does_not_lose_or_double_count_it() -> Non
         pytest.skip("needs at least two judge workers (CJ_JUDGES=2, the default)")
     c = await admin()
     slug = await problem(c, time_limit_ms=10_000)
+    (person,) = await students(c, 1)
     s = await ok(
-        c,
+        person,
         "POST",
         "/api/v1/submissions",
         {"problem": slug, "language": "python3", "source": SOURCES["py_slow_ok"]},
@@ -246,4 +287,6 @@ async def test_a_worker_killed_mid_job_does_not_lose_or_double_count_it() -> Non
         assert problem_row["accepted_count"] == 1 and problem_row["submissions_count"] == 1
     finally:
         await docker("start", victim, check=False)
+        await remove(c, slug)
+        await person.aclose()
         await c.aclose()

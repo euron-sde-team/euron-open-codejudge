@@ -60,3 +60,6 @@ models/
 # Benchmark audio fetched at run time (public datasets, attribution in docs)
 benchmarks/audio/
 .cache/
+
+# Local backups (make backup)
+backups/

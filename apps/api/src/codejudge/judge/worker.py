@@ -172,34 +172,39 @@ class Worker:
         state = _Progress()
         stop = threading.Event()
 
+        def beat() -> None:
+            self.api.heartbeat(
+                Heartbeat(
+                    job_id=job.job_id,
+                    attempt=job.attempt,
+                    worker=self.name,
+                    status=state.stage,
+                    tests_done=state.done,
+                )
+            )
+
         def keep_alive() -> None:
             while not stop.wait(self.settings.heartbeat_s):
                 # Re-claiming our own message resets its idle time: the lease is renewed.
                 self.redis.xclaim(
                     STREAM, GROUP, self.name, min_idle_time=0, message_ids=[msg_id], justid=True
                 )
-                self.api.heartbeat(
-                    Heartbeat(
-                        job_id=job.job_id,
-                        attempt=job.attempt,
-                        worker=self.name,
-                        status=state.stage,
-                        tests_done=state.done,
-                    )
-                )
+                beat()
 
         def progress(stage: str, done: int) -> None:
             state.stage = "compiling" if stage == "compiling" else "running"
             state.done = done
 
-        beat = threading.Thread(target=keep_alive, daemon=True)
-        beat.start()
+        # Tell the API at once, so the person sees "compiling" instead of "queued".
+        beat()
+        beater = threading.Thread(target=keep_alive, daemon=True)
+        beater.start()
         try:
             with DURATION.time():
                 result = self.judge.judge(job, progress)
         finally:
             stop.set()
-            beat.join(timeout=5)
+            beater.join(timeout=5)
         JUDGED.labels(result.verdict.value).inc()
         self.api.post_result(result)
         self.ack(msg_id)

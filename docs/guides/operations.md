@@ -47,12 +47,12 @@ After fixing the cause, rejudge the affected submissions (**Submissions**, selec
 
 Postgres holds everything except test packages, which are in object storage by hash.
 
-- Locally: `docker compose -f deploy/compose/compose.yaml exec postgres pg_dump -U codejudge codejudge > backup.sql`,
-  and copy the `objects` volume (or the Floci bucket).
-- On AWS: RDS automated backups and snapshots; the objects bucket is versioned.
-
-To restore, load the dump into an empty database, restore the bucket, then start the API
-(migrations run on start in Compose; on AWS run `make aws-migrate`).
+- Locally: `make backup` writes `backups/<timestamp>/` with a consistent `pg_dump`
+  (custom format, taken in one transaction while the app keeps serving) and a copy of the
+  objects bucket. `make restore BACKUP=backups/<timestamp>` stops the API, worker, judges
+  and web, replaces the database contents, re-uploads the objects and starts them again.
+- On AWS: RDS automated backups and snapshots; the objects bucket is versioned. Restore a
+  snapshot into a new instance, point `DATABASE_URL` at it, and run `make aws-migrate`.
 
 ## Rotating secrets
 

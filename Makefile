@@ -26,7 +26,7 @@ JUDGE_HARDENING := --cap-drop ALL --security-opt no-new-privileges \
   --tmpfs /var/cache/codejudge:size=1g,uid=10001,gid=10001 \
   --pids-limit 512 --memory 3g --network none
 
-.PHONY: help env up up-aws down logs ps demo admin test test-integration test-judge test-matrix e2e qa \
+.PHONY: backup restore help env up up-aws down logs ps demo admin test test-integration test-judge test-matrix e2e qa \
         lint typecheck build openapi sanitize tf-fmt tf-validate tf-lint tf-security tf-aws-on-floci \
         aws-deploy aws-migrate aws-admin aws-plan clean
 
@@ -55,6 +55,13 @@ up-aws: env ## Start the stack against real AWS resources (needs deploy/compose/
 demo: ## Seed the demo install: users, problems, contests, classes, assessments and history
 	$(FLOCI) run --rm -T worker seed-demo
 	@echo "  Sign in at http://localhost:$${CJ_WEB_PORT:-4710} with a demo account above, password $(DEMO_PW)"
+
+backup: ## Back up the local stack: Postgres dump and the objects bucket, into backups/
+	@scripts/backup.sh
+
+restore: ## Restore a backup into the running stack (BACKUP=backups/<timestamp>)
+	@test -n "$(BACKUP)" || { echo "usage: make restore BACKUP=backups/<timestamp>"; exit 1; }
+	@scripts/restore.sh "$(BACKUP)"
 
 down: ## Stop the stack and delete its data
 	-$(FLOCI) down -v --remove-orphans
