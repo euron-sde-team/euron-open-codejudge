@@ -47,9 +47,9 @@ root anywhere. [ADR-0001](adr/0001-unprivileged-nsjail-sandbox.md)
 | `no-new-privileges` | on | No setuid binary can raise privileges |
 | Seccomp | Docker's default profile plus `clone, unshare, mount, umount2, pivot_root, sethostname, setdomainname, setns` (`infra/docker/judge-seccomp.json`) | Docker's default blocks namespace creation unless `CAP_SYS_ADMIN` is held. Allowing these few calls without the capability is what lets nsjail build a sandbox while the container stays unprivileged; the kernel still allows them only inside a new user namespace |
 | Root filesystem | read-only | The worker cannot be modified, even by itself |
-| Scratch | tmpfs `/tmp` (exec, 1 GB) and `/var/cache/codejudge` (2 GB), owned by uid 10001 | Compiled programs run from `/tmp`; test packages are cached in the other |
+| Scratch | tmpfs `/tmp` (exec, 1 GB) and `/var/cache/codejudge` (1.2 GB, with a 1 GB cache budget), owned by uid 10001 | Compiled programs run from `/tmp`; test packages are cached in the other |
 | User | uid 10001 | Never root |
-| Limits | `pids_limit: 512`, `mem_limit: 3g`, `cpus: 2` | The outer bound on everything below |
+| Limits | `pids_limit: 512`, `mem_limit: 4g` (the cache, scratch, the largest problem memory limit and the worker, since tmpfs counts as memory), `cpus: 2` | The outer bound on everything below |
 | Network | Only the `judge` Compose network (internal: no internet), which holds the API and Redis | No database, no object storage, no web app, no metadata service |
 | Secrets | `JUDGE_TOKEN` and `REDIS_URL` only | A compromised worker can post results and read jobs, nothing else ([ADR-0005](adr/0005-judges-hold-no-database-or-storage-credentials.md)) |
 

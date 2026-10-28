@@ -57,12 +57,10 @@ refuses to start with demo secrets, equal secrets, no Redis, `COOKIE_SECURE=fals
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `JUDGE_TOKEN` | dev value | Shared with the judge workers; authenticates `/internal/judge/*`. Must differ from the other secrets |
-| `JUDGE_LEASE_S`, `JUDGE_MAX_ATTEMPTS` | `120`, `3` | Declared but not read in 0.1.0: the worker derives its lease from `HEARTBEAT_S` (four heartbeats, at least 60 s) and gives up after three deliveries |
-| `MAX_TIME_LIMIT_MS`, `MAX_MEMORY_LIMIT_MB` | `10000`, `1024` | Imported packages asking for more are lowered to these, with a warning |
+| `MAX_TIME_LIMIT_MS`, `MAX_MEMORY_LIMIT_MB` | `10000`, `1024` | The highest limits a problem may set: creating or editing one above them is refused, imported packages are lowered with a warning. Size the judge's memory to the memory maximum |
 | `MAX_SOURCE_BYTES` | `128000` | Longest submission |
 | `MAX_PACKAGE_BYTES` | `256000000` | Largest test package (upload and built) |
 | `SUBMIT_RPM` | `12` | Submissions and runs per person per minute |
-| `RATE_LIMIT_RPM` | `120` | Declared; not read in 0.1.0 (each limited route has its own limit) |
 | `MAX_BODY_BYTES` | `2000000` | General request body limit (staff package uploads use `MAX_PACKAGE_BYTES`) |
 | `MAX_INTERNAL_BODY_BYTES` | `64000000` | Body limit on `/internal/*` (judge results) |
 
@@ -88,14 +86,16 @@ A judge reads only these. It gets no database, storage or session secret.
 | `REDIS_URL` | `redis://localhost:4779/0` | The job stream |
 | `WORKER_NAME` | the host name | Consumer name in the stream and in results |
 | `CACHE_DIR` | `/var/cache/codejudge` | Test packages by hash |
-| `CACHE_MAX_BYTES` | `2000000000` | Package cache budget (least recently used evicted) |
+| `CACHE_MAX_BYTES` | `2000000000` (Compose: `1000000000`) | Package cache budget, least recently used evicted before a new package arrives. Keep it inside the cache tmpfs: tmpfs pages count against the container's memory |
 | `WORK_DIR` | `/tmp/judge` | Scratch for one run (needs exec: compiled programs run from it) |
-| `NSJAIL_PATH` | `/usr/local/bin/nsjail` | Declared; the sandbox uses `/usr/local/bin/nsjail` in 0.1.0 |
+| `NSJAIL_PATH` | `/usr/local/bin/nsjail` | The nsjail binary |
 | `LANGUAGES_FILE` | the bundled `languages.yaml` | Your own language registry |
 | `COMPILE_TIME_LIMIT_S`, `COMPILE_MEMORY_MB` | `20`, `1024` | Compiler limits |
 | `MAX_OUTPUT_BYTES` | `64000000` | Ceiling on any problem's output limit |
 | `WALL_FACTOR`, `WALL_EXTRA_S` | `2.0`, `1.0` | Wall clock allowance: CPU limit times the factor plus the extra |
 | `HEARTBEAT_S` | `15` | Lease renewal and progress interval |
+| `LEASE_S` | `60` | A job whose worker stops renewing for this long is claimed by another (at least four heartbeats) |
+| `MAX_ATTEMPTS` | `3` | Deliveries before a job is reported as an internal error |
 | `METRICS_PORT` | `9465` | Prometheus port (0 disables) |
 | `ENVIRONMENT`, `LOG_LEVEL` | as above | Production refuses a weak `JUDGE_TOKEN` |
 

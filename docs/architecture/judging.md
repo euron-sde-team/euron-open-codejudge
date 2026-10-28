@@ -31,18 +31,27 @@ Jobs go on the stream `judge:jobs`, read through the consumer group `judges`
 1. **Taking a job.** A worker first tries `XAUTOCLAIM` for a job idle longer than the
    lease (a worker that died while judging it), then `XREADGROUP` for a new one. It takes
    one job at a time.
-2. **The lease.** While judging, the worker re-claims its own message every `HEARTBEAT_S`
-   (15 s by default), which resets the message's idle time. The lease is four heartbeats,
-   at least 60 s. A worker that dies stops renewing; after the lease any other worker
-   claims the job.
-3. **Attempts.** The delivery count (`XPENDING`) is the attempt number. After three
-   deliveries the worker reports an internal error ("the judge gave up after 3 attempts")
-   instead of judging again, so a job that crashes every worker cannot loop forever.
-4. **Acknowledging.** The worker posts the result first (retrying with backoff on network
-   errors) and acknowledges and deletes the message only after the API accepted it. A
-   crash between the two means the job is judged again; the API's idempotency makes that
-   harmless.
-5. **Shutting down.** `SIGTERM` lets the worker finish the job in hand before it exits, so
+2. **The lease.** The worker reports the job to the API at once (so the person sees
+   "compiling" immediately), then re-claims its own message every `HEARTBEAT_S` (15 s by
+   default), which resets the message's idle time. The lease is `LEASE_S` (60 s), and at
+   least four heartbeats. A worker that dies stops renewing; after the lease any other
+   worker claims the job.
+3. **Attempts.** The delivery count (`XPENDING`) is the attempt number. A possibly
+   transient internal error (a sandbox that failed to start, a full disk, a bad download)
+   is left unacknowledged so the job is judged again; after `MAX_ATTEMPTS` (3) deliveries
+   the worker reports "the judge gave up after 3 attempts" instead, so a job that crashes
+   every worker cannot loop forever.
+4. **Acknowledging.** The worker posts the result and keeps renewing the lease while it
+   does, retrying with backoff for as long as the API is unreachable: an outage of the
+   API or the database delays verdicts but never turns a finished judgement into an
+   internal error, and never costs an attempt. It acknowledges and deletes the message
+   only after the API accepted the result. A crash between the two means the job is
+   judged again; the API's idempotency makes that harmless.
+5. **Lost jobs.** The API commits a submission, then puts its job on the stream. If that
+   second step fails (Redis down for a moment), a periodic task in the background worker
+   finds submissions still queued after two minutes whose job is not on the stream and
+   queues them again.
+6. **Shutting down.** `SIGTERM` lets the worker finish the job in hand before it exits, so
    a deploy never throws away a judgement.
 
 Redis must not evict the stream: it runs with `maxmemory-policy noeviction` locally and on
