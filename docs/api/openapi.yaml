@@ -2359,6 +2359,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/candidate/preview:
+    post:
+      tags:
+      - assessments
+      summary: Candidate Preview
+      description: 'What the link is for, before starting: title, duration, instructions, window. A POST
+
+        so the token never lands in a URL or an access log.'
+      operationId: candidate_preview_api_v1_candidate_preview_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CandidateSessionIn'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CandidatePreview'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/candidate/session:
     post:
       tags:
@@ -3517,6 +3545,60 @@ components:
       required:
       - file
       title: Body_upload_package_api_v1_problems__problem_id__package_post
+    CandidatePreview:
+      properties:
+        name:
+          type: string
+          title: Name
+        title:
+          type: string
+          title: Title
+        instructions_md:
+          type: string
+          title: Instructions Md
+        duration_minutes:
+          type: integer
+          title: Duration Minutes
+        opens_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Opens At
+        closes_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Closes At
+        status:
+          type: string
+          enum:
+          - invited
+          - started
+          - submitted
+          - expired
+          - revoked
+          title: Status
+        problems:
+          type: integer
+          title: Problems
+        total_points:
+          type: number
+          title: Total Points
+      type: object
+      required:
+      - name
+      - title
+      - instructions_md
+      - duration_minutes
+      - opens_at
+      - closes_at
+      - status
+      - problems
+      - total_points
+      title: CandidatePreview
+      description: 'Shown before the candidate starts: nothing here starts the clock.'
     CandidateProblem:
       properties:
         points:
@@ -4934,6 +5016,10 @@ components:
           $ref: '#/components/schemas/Side'
         b:
           $ref: '#/components/schemas/Side'
+        run_id:
+          type: string
+          format: uuid
+          title: Run Id
         source_a:
           type: string
           title: Source A
@@ -4950,6 +5036,7 @@ components:
       - similarity
       - a
       - b
+      - run_id
       - source_a
       - source_b
       title: PairDetail
@@ -6150,6 +6237,11 @@ components:
           type: string
           format: uuid
           title: Scope Id
+        scope_title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scope Title
         threshold:
           type: number
           title: Threshold
@@ -6229,6 +6321,11 @@ components:
           type: string
           format: uuid
           title: Scope Id
+        scope_title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scope Title
         threshold:
           type: number
           title: Threshold
