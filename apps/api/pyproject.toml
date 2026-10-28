@@ -87,6 +87,7 @@ testpaths = ["tests"]
 markers = [
   "integration: needs Postgres, Redis, Floci and the mock AI (make test-integration)",
   "judge: needs the judge image (nsjail and the toolchains; make test-judge)",
+  "stack: needs the running stack with real judge workers (make up, then make test-stack)",
 ]
 addopts = "-ra"
 
