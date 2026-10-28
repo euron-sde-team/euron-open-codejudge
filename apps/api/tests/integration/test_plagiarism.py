@@ -55,10 +55,11 @@ async def test_a_run_flags_the_copy_and_not_the_independent_solution(stack: Stac
 
     full = await stack.ok("GET", f"/api/v1/plagiarism/pairs/{pair['id']}")
     assert {full["source_a"], full["source_b"]} == {ORIGINAL_PY, DISGUISED_PY}
+    assert full["run_id"] == run["id"] and detail["scope_title"] == "Sum"
     listed = await stack.ok(
         "GET", f"/api/v1/plagiarism/runs?scope=problem&scope_id={detail['scope_id']}"
     )
-    assert [r["id"] for r in listed] == [run["id"]]
+    assert [r["id"] for r in listed] == [run["id"]] and listed[0]["scope_title"] == "Sum"
 
 
 async def test_one_program_per_author_the_accepted_one(stack: Stack) -> None:

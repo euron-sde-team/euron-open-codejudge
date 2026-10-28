@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1.7
 # ─────────────────────────────────────────────────────────────────────────────
-# Dashboard: Next.js standalone server.
+# Web app: Next.js standalone server.
 #   docker build -f infra/docker/web.Dockerfile -t codejudge-web apps/web
 #
-# The browser only ever talks to this origin. /api/* and /v1/* reach the API through
-# Next rewrites to API_INTERNAL_URL (locally http://api:8080 on the Compose network);
-# on AWS the load balancer routes those paths to the API before they get here. The
-# Content-Security-Policy names RUNTIME_PUBLIC_URL, read per request by middleware.ts.
+# The browser only ever talks to this origin. /api/* reaches the API through Next
+# rewrites to API_INTERNAL_URL (locally http://api:8080 on the Compose network); on AWS
+# the load balancer routes /api to the API before it gets here. Live verdicts are
+# server-sent events through the same path. /api/healthz is the web server's own probe.
 # ─────────────────────────────────────────────────────────────────────────────
 ARG NODE_IMAGE=node:22.23.4-bookworm-slim
 
@@ -31,7 +31,7 @@ COPY . .
 RUN pnpm build
 
 FROM ${NODE_IMAGE} AS runtime
-ENV NODE_ENV=production TZ=UTC PORT=8080 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1 \
+ENV NODE_ENV=production TZ=UTC PORT=3000 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1 \
     API_INTERNAL_URL=http://api:8080
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends tini \
@@ -43,8 +43,8 @@ COPY --from=build --chown=node:node /app/public ./public
 # read-only on ECS, which mounts a volume here.
 RUN mkdir -p /app/.next/cache && chown node:node /app/.next/cache
 USER node
-EXPOSE 8080
+EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["node", "server.js"]

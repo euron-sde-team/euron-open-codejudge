@@ -3,6 +3,7 @@ the report. Through the real API, with the invitation email read from the log ba
 
 from __future__ import annotations
 
+import secrets
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -323,3 +324,22 @@ async def test_the_background_task_expires_finished_time(stack: Stack) -> None:
         await container.close()
     listed = await stack.ok("GET", f"/api/v1/assessments/{a['id']}/invitations")
     assert listed[0]["status"] == "expired"
+
+
+async def test_the_preview_shows_the_assessment_without_starting_the_clock(stack: Stack) -> None:
+    await problems_ready(stack)
+    a = await assessment(stack)
+    inv, token = await invite(stack, a)
+    async with stack.anonymous() as anon:
+        preview = await anon.post("/api/v1/candidate/preview", json={"token": token})
+        assert preview.status_code == 200, preview.text
+        body = preview.json()
+        assert body["title"] == a["title"] and body["duration_minutes"] == a["duration_minutes"]
+        assert body["status"] == "invited" and body["problems"] >= 1
+        bad = await anon.post(
+            "/api/v1/candidate/preview", json={"token": secrets.token_urlsafe(32)}
+        )
+        assert bad.status_code == 401
+    listed = await stack.ok("GET", f"/api/v1/assessments/{a['id']}/invitations")
+    row = next(i for i in listed if i["id"] == inv["id"])
+    assert row["status"] == "invited" and row["started_at"] is None and row["deadline_at"] is None

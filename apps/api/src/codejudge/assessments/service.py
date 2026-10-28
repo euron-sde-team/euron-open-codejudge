@@ -37,6 +37,7 @@ from codejudge.assessments.schemas import (
     AssessmentProblemIn,
     AssessmentProblemOut,
     AssessmentUpdate,
+    CandidatePreview,
     CandidateProblem,
     CandidateView,
     InvitationCounts,
@@ -455,6 +456,26 @@ def _refuse_unusable(inv: Invitation) -> None:
     if inv.status in messages:
         message, code = messages[inv.status]
         raise AuthenticationError(message, code=code)
+
+
+async def preview(container: Container, session: AsyncSession, token: str) -> CandidatePreview:
+    """What the candidate needs before deciding to start: the title, the duration, the
+    instructions and the window. Starts nothing: the clock runs only from ``open_session``."""
+    inv = await _by_token(session, container.settings, token)
+    await _expire_if_over(session, inv)
+    a = await get(session, inv.assessment_id)
+    rows = await _problem_rows(session, a.id)
+    return CandidatePreview(
+        name=inv.name,
+        title=a.title,
+        instructions_md=a.instructions_md,
+        duration_minutes=a.duration_minutes,
+        opens_at=a.opens_at,
+        closes_at=a.closes_at,
+        status=inv.status,
+        problems=len(rows),
+        total_points=sum(ap.points for ap, _ in rows),
+    )
 
 
 async def open_session(container: Container, session: AsyncSession, token: str) -> Invitation:

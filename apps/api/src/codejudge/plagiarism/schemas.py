@@ -25,6 +25,8 @@ class RunOut(ApiModel):
     id: uuid.UUID
     scope: Scope
     scope_id: uuid.UUID
+    # The problem, contest or assignment title, for lists (None if it was deleted).
+    scope_title: str | None = None
     threshold: float
     status: Literal["queued", "running", "done", "failed"]
     documents: int
@@ -63,5 +65,6 @@ class RunDetail(RunOut):
 
 
 class PairDetail(PairOut):
+    run_id: uuid.UUID
     source_a: str
     source_b: str

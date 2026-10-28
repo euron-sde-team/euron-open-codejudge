@@ -220,7 +220,9 @@ services:
       - "127.0.0.1:${CJ_WEB_PORT:-4710}:3000"
     read_only: true
     tmpfs:
-      - /tmp:uid=1001,gid=1001
+      # The node user is uid 1000; Next writes its image cache under .next/cache.
+      - /tmp:uid=1000,gid=1000
+      - /app/.next/cache:uid=1000,gid=1000
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 5s

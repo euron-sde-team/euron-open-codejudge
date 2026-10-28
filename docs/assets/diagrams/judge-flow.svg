@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="380" viewBox="0 0 1200 380" role="img" aria-labelledby="t d">
+  <title id="t">From submission to verdict</title>
+  <desc id="d">The API admits the submission through the context policy and puts a job on the Redis Stream. A judge worker claims it with a lease renewed by heartbeats, fetches the test package by hash, compiles and runs each test in a fresh sandbox, compares the output outside the sandbox and posts the result. The API applies it only for the current job and only once, then updates scoreboards and analytics and tells the browser.</desc>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#0d9488"/></marker>
+  </defs>
+  <rect width="1200" height="380" rx="16" fill="#f8fafc"/>
+  <g font-family="Inter, -apple-system, Segoe UI, Helvetica, Arial, sans-serif" fill="#0f172a">
+    <g font-size="15" font-weight="650">
+      <rect x="30" y="120" width="190" height="120" rx="12" fill="#ccfbf1"/>
+      <text x="125" y="152" text-anchor="middle">1. Submit</text>
+      <rect x="260" y="120" width="190" height="120" rx="12" fill="#fee2e2"/>
+      <text x="355" y="152" text-anchor="middle">2. Queue</text>
+      <rect x="490" y="120" width="220" height="120" rx="12" fill="#0f766e"/>
+      <text x="600" y="152" text-anchor="middle" fill="#f0fdfa">3. Judge</text>
+      <rect x="750" y="120" width="190" height="120" rx="12" fill="#99f6e4"/>
+      <text x="845" y="152" text-anchor="middle">4. Ingest once</text>
+      <rect x="980" y="120" width="190" height="120" rx="12" fill="#e0e7ff"/>
+      <text x="1075" y="152" text-anchor="middle">5. Everyone sees it</text>
+    </g>
+    <g font-size="13" fill="#334155">
+      <text x="125" y="180" text-anchor="middle">context policy admits,</text>
+      <text x="125" y="198" text-anchor="middle">pinned to a test version,</text>
+      <text x="125" y="216" text-anchor="middle">new job id</text>
+      <text x="355" y="180" text-anchor="middle">Redis Stream, consumer</text>
+      <text x="355" y="198" text-anchor="middle">group; leases renewed</text>
+      <text x="355" y="216" text-anchor="middle">by heartbeats</text>
+      <text x="600" y="180" text-anchor="middle" fill="#ccfbf1">package by SHA-256, compile,</text>
+      <text x="600" y="198" text-anchor="middle" fill="#ccfbf1">one sandbox per test,</text>
+      <text x="600" y="216" text-anchor="middle" fill="#ccfbf1">compare outside the sandbox</text>
+      <text x="845" y="180" text-anchor="middle">current job only,</text>
+      <text x="845" y="198" text-anchor="middle">row lock, then</text>
+      <text x="845" y="216" text-anchor="middle">acknowledge</text>
+      <text x="1075" y="180" text-anchor="middle">live event, scoreboard</text>
+      <text x="1075" y="198" text-anchor="middle">version, analytics</text>
+      <text x="1075" y="216" text-anchor="middle">bucket, counters</text>
+    </g>
+    <g font-size="13" fill="#0f766e">
+      <text x="600" y="290" text-anchor="middle">a worker that dies stops renewing: after the lease another worker claims the job</text>
+      <text x="600" y="312" text-anchor="middle">a retried or redelivered result gets 409 and changes nothing</text>
+    </g>
+  </g>
+  <g stroke="#0d9488" stroke-width="2.5" fill="none">
+    <path d="M220 180H252" marker-end="url(#a)"/>
+    <path d="M450 180H482" marker-end="url(#a)"/>
+    <path d="M710 180H742" marker-end="url(#a)"/>
+    <path d="M940 180H972" marker-end="url(#a)"/>
+  </g>
+</svg>

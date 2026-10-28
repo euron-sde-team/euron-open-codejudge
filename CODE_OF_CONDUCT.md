@@ -15,7 +15,6 @@ language, publishing others' private information, and sustained disruption.
 
 Report unacceptable behavior privately to the maintainers at ENGAGESPHERE
 TECHNOLOGY PRIVATE LIMITED, using the security contact on the repository's
-GitHub profile. All reports are reviewed and kept
-confidential. Maintainers may warn, temporarily ban, or permanently ban
+GitHub profile. All reports are reviewed and kept confidential. Maintainers may warn, temporarily ban, or permanently ban
 contributors who violate this code, following the Contributor Covenant
 [enforcement guidelines](https://www.contributor-covenant.org/version/2/1/code_of_conduct/#enforcement-guidelines).

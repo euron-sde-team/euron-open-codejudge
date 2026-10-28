@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-labelledby="t d">
+  <title id="t">Euron Open CodeJudge</title>
+  <desc id="d">Trustworthy verdicts on your own servers: a self-hosted coding assessment platform with an unprivileged sandbox</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07171a"/>
+      <stop offset="1" stop-color="#0b2328"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5eead4"/>
+      <stop offset="1" stop-color="#0d9488"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#14b8a6" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#14b8a6" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#ffffff" stroke-opacity="0.035"/>
+    </pattern>
+  </defs>
+  <rect width="1280" height="320" rx="16" fill="url(#bg)"/>
+  <rect width="1280" height="320" rx="16" fill="url(#grid)"/>
+  <circle cx="1040" cy="160" r="190" fill="url(#halo)"/>
+
+  <g font-family="Inter, -apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+    <text x="72" y="140" fill="#ecfeff" font-size="54" font-weight="650" letter-spacing="-1.2">Euron Open CodeJudge</text>
+    <text x="74" y="186" fill="#99d5cf" font-size="22" font-weight="400">Trustworthy verdicts, on your own servers.</text>
+    <text x="74" y="240" fill="#6fb3ac" font-size="16">Python, C++, Java, JavaScript  ·  an unprivileged sandbox  ·  contests, classes, interviews</text>
+  </g>
+
+  <g transform="translate(900 70)" font-family="JetBrains Mono, SFMono-Regular, Menlo, Consolas, monospace">
+    <rect width="290" height="180" rx="14" fill="#0f2f35" stroke="#1d4a52"/>
+    <circle cx="22" cy="20" r="5" fill="#f87171"/><circle cx="40" cy="20" r="5" fill="#fbbf24"/><circle cx="58" cy="20" r="5" fill="#34d399"/>
+    <text x="22" y="62" fill="#99f6e4" font-size="15">secret/01   AC   12 ms</text>
+    <text x="22" y="88" fill="#99f6e4" font-size="15">secret/02   AC   31 ms</text>
+    <text x="22" y="114" fill="#99f6e4" font-size="15">secret/03   AC   48 ms</text>
+    <rect x="22" y="132" width="98" height="30" rx="8" fill="url(#mark)"/>
+    <text x="38" y="153" fill="#042f2e" font-size="15" font-weight="700">Accepted</text>
+    <text x="134" y="153" fill="#6fb3ac" font-size="13">100 / 100</text>
+  </g>
+</svg>

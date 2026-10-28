@@ -99,7 +99,10 @@ async def get_problem(ref: str, who: OptionalSubmitter, session: SessionDep) -> 
 
 
 @router.post("/problems", response_model=ProblemSummary, status_code=201)
-async def create_problem(body: ProblemCreate, actor: Staff, session: SessionDep) -> ProblemSummary:
+async def create_problem(
+    body: ProblemCreate, actor: Staff, session: SessionDep, container: ContainerDep
+) -> ProblemSummary:
+    service.check_limits(container.settings, body.time_limit_ms, body.memory_limit_mb)
     return service.summary(await service.create(session, body, actor))
 
 
@@ -112,8 +115,13 @@ async def problem_admin(
 
 @router.patch("/problems/{problem_id}", response_model=ProblemSummary)
 async def update_problem(
-    problem_id: uuid.UUID, body: ProblemUpdate, actor: Staff, session: SessionDep
+    problem_id: uuid.UUID,
+    body: ProblemUpdate,
+    actor: Staff,
+    session: SessionDep,
+    container: ContainerDep,
 ) -> ProblemSummary:
+    service.check_limits(container.settings, body.time_limit_ms, body.memory_limit_mb)
     return service.summary(
         await service.update(session, await service.get(session, problem_id), body, actor)
     )

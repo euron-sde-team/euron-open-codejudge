@@ -80,10 +80,7 @@ class Settings(_Base):
 
     # Shared with the judge workers: authenticates their calls to /internal.
     judge_token: str = "dev-judge-token-not-for-production"  # noqa: S105 refused in production
-    # A job not acknowledged within this lease goes back to the queue (a worker died).
-    judge_lease_s: float = Field(120.0, ge=10, le=3600)
-    judge_max_attempts: int = Field(3, ge=1, le=10)
-    # Upper bounds a problem setter can choose; the judge enforces them again.
+    # Upper bounds a problem setter can choose (on create, edit and import).
     max_time_limit_ms: int = Field(10_000, ge=100, le=60_000)
     max_memory_limit_mb: int = Field(1024, ge=16, le=8192)
     max_source_bytes: int = Field(128_000, ge=1_000, le=2_000_000)
@@ -92,7 +89,6 @@ class Settings(_Base):
     # Optional AI hints. Off unless an admin turns them on and sets an endpoint.
     ai_allow_private_endpoints: bool = True
 
-    rate_limit_rpm: int = 120
     submit_rpm: int = 12
     max_body_bytes: int = 2_000_000
     max_internal_body_bytes: int = 64_000_000
@@ -167,6 +163,11 @@ class JudgeSettings(_Base):
     wall_factor: float = Field(2.0, ge=1.0, le=10.0)
     wall_extra_s: float = Field(1.0, ge=0.0, le=30.0)
     heartbeat_s: float = Field(15.0, ge=1.0, le=300.0)
+    # A job whose worker stops heart-beating for this long is claimed by another worker
+    # (the first one died); at least four heartbeats, so a slow beat is never mistaken.
+    lease_s: float = Field(60.0, ge=10, le=3600)
+    # Deliveries before a job is reported as an internal error instead of retried again.
+    max_attempts: int = Field(3, ge=1, le=10)
     metrics_port: int = Field(9465, ge=0, le=65535)
 
     def guard(self) -> None:

@@ -35,12 +35,12 @@ from codejudge.core.contract import Heartbeat, JudgeJob, JudgeResult, Verdict
 from codejudge.judge import languages
 from codejudge.judge.packages import PackageCache
 from codejudge.judge.runner import Judge, JudgeConfig
+from codejudge.judge.sandbox import Sandbox
 
 log = logging.getLogger("codejudge.judge")
 
 STREAM = "judge:jobs"
 GROUP = "judges"
-MAX_ATTEMPTS = 3
 
 JUDGED = Counter("codejudge_judge_jobs_total", "Jobs judged, by verdict", ["verdict"])
 DURATION = Histogram(
@@ -113,8 +113,14 @@ class Worker:
             wall_extra_s=settings.wall_extra_s,
             worker=self.name,
         )
-        self.judge = Judge(config, languages.registry(settings.languages_file or None), cache)
-        self.lease_ms = int(max(settings.heartbeat_s * 4, 60) * 1000)
+        self.judge = Judge(
+            config,
+            languages.registry(settings.languages_file or None),
+            cache,
+            Sandbox(nsjail=settings.nsjail_path),
+        )
+        self.lease_ms = int(max(settings.lease_s, settings.heartbeat_s * 4) * 1000)
+        self.max_attempts = settings.max_attempts
         self.stopping = threading.Event()
 
     def ensure_group(self) -> None:
@@ -146,7 +152,7 @@ class Worker:
     def process(self, msg_id: str, fields: dict[str, str]) -> None:
         job = JudgeJob.model_validate_json(fields["job"])
         job = job.model_copy(update={"attempt": self.deliveries(msg_id)})
-        if job.attempt > MAX_ATTEMPTS:
+        if job.attempt > self.max_attempts:
             log.error(
                 "job %s failed %d times; reporting an internal error", job.job_id, job.attempt - 1
             )
@@ -157,7 +163,7 @@ class Worker:
                     submission_id=job.submission_id,
                     worker=self.name,
                     verdict=Verdict.IE,
-                    error=f"the judge gave up after {MAX_ATTEMPTS} attempts",
+                    error=f"the judge gave up after {self.max_attempts} attempts",
                 )
             )
             self.ack(msg_id)

@@ -115,6 +115,20 @@ class CandidateProblem(ApiModel):
     problem: ProblemOut
 
 
+class CandidatePreview(ApiModel):
+    """Shown before the candidate starts: nothing here starts the clock."""
+
+    name: str
+    title: str
+    instructions_md: str
+    duration_minutes: int
+    opens_at: datetime | None
+    closes_at: datetime | None
+    status: InvitationStatus
+    problems: int
+    total_points: float
+
+
 class CandidateView(ApiModel):
     """Everything a candidate's page needs, and nothing about anyone else."""
 

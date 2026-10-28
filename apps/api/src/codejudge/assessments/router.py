@@ -18,6 +18,7 @@ from codejudge.assessments.schemas import (
     AssessmentCreate,
     AssessmentOut,
     AssessmentUpdate,
+    CandidatePreview,
     CandidateSessionIn,
     CandidateView,
     EventIn,
@@ -128,6 +129,15 @@ async def report(
 
 
 # ── candidate ────────────────────────────────────────────────────────────────────────
+@router.post("/candidate/preview", response_model=CandidatePreview)
+async def candidate_preview(
+    body: CandidateSessionIn, session: SessionDep, container: ContainerDep
+) -> CandidatePreview:
+    """What the link is for, before starting: title, duration, instructions, window. A POST
+    so the token never lands in a URL or an access log."""
+    return await service.preview(container, session, body.token)
+
+
 @router.post("/candidate/session", response_model=CandidateView)
 async def candidate_session(
     body: CandidateSessionIn, session: SessionDep, container: ContainerDep

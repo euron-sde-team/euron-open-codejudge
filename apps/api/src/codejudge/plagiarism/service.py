@@ -71,8 +71,24 @@ async def start(session: AsyncSession, data: PlagiarismRunCreate, actor: Actor) 
     return run
 
 
-def run_out(run: PlagiarismRun) -> RunOut:
-    return RunOut.model_validate(run)
+def run_out(run: PlagiarismRun, title: str | None = None) -> RunOut:
+    out = RunOut.model_validate(run)
+    out.scope_title = title
+    return out
+
+
+async def scope_titles(session: AsyncSession, runs: list[PlagiarismRun]) -> dict[uuid.UUID, str]:
+    """Titles of the runs' problems, contests and assignments: one query per scope kind."""
+    from codejudge.classrooms.models import Assignment
+    from codejudge.contests.models import Contest
+
+    titles: dict[uuid.UUID, str] = {}
+    for scope, model in (("problem", Problem), ("contest", Contest), ("assignment", Assignment)):
+        ids = {r.scope_id for r in runs if r.scope == scope}
+        if ids:
+            rows = await session.execute(select(model.id, model.title).where(model.id.in_(ids)))
+            titles.update({row[0]: row[1] for row in rows.all()})
+    return titles
 
 
 async def list_runs(
@@ -83,7 +99,9 @@ async def list_runs(
         query = query.where(PlagiarismRun.scope == scope)
     if scope_id:
         query = query.where(PlagiarismRun.scope_id == scope_id)
-    return [run_out(r) for r in (await session.scalars(query)).all()]
+    rows = list((await session.scalars(query)).all())
+    titles = await scope_titles(session, rows)
+    return [run_out(r, titles.get(r.scope_id)) for r in rows]
 
 
 async def get_run(session: AsyncSession, run_id: uuid.UUID) -> PlagiarismRun:
@@ -170,7 +188,8 @@ async def detail(session: AsyncSession, run_id: uuid.UUID) -> RunDetail:
         ).all()
     )
     out, _ = await _pairs_out(session, pairs)
-    return RunDetail(**run_out(run).model_dump(), pairs=out)
+    title = (await scope_titles(session, [run])).get(run.scope_id)
+    return RunDetail(**run_out(run, title).model_dump(), pairs=out)
 
 
 async def pair_detail(session: AsyncSession, pair_id: uuid.UUID) -> PairDetail:
@@ -182,6 +201,7 @@ async def pair_detail(session: AsyncSession, pair_id: uuid.UUID) -> PairDetail:
         raise NotFoundError("The submissions of this pair no longer exist")
     return PairDetail(
         **out[0].model_dump(),
+        run_id=pair.run_id,
         source_a=subs[pair.submission_a].source,
         source_b=subs[pair.submission_b].source,
     )

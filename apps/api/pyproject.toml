@@ -95,7 +95,9 @@ addopts = "-ra"
 source = ["codejudge"]
 branch = true
 concurrency = ["greenlet", "thread"]
-omit = ["*/migrations/*", "*/demo/*"]
+# The judge runtime (nsjail, the toolchains) runs only inside the judge image, where
+# make test-judge exercises it; the demo seed is exercised by make demo.
+omit = ["*/migrations/*", "*/demo/*", "*/judge/sandbox.py", "*/judge/runner.py", "*/judge/worker.py", "*/mockai/*"]
 
 [tool.coverage.report]
 skip_empty = true

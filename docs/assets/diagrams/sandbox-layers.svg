@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="t d">
+  <title id="t">Sandbox layers</title>
+  <desc id="d">The host runs the judge worker container: every capability dropped, no new privileges, read only root, Docker's default seccomp profile plus the namespace calls, and a network that reaches only the API and Redis. Inside, each run gets an nsjail sandbox with new user, PID, network and mount namespaces, uid 65534, rlimits, a syscall filter and read only system directories. The test answers and the worker's files stay outside every sandbox.</desc>
+  <rect width="1200" height="520" rx="16" fill="#f8fafc"/>
+  <g font-family="Inter, -apple-system, Segoe UI, Helvetica, Arial, sans-serif" fill="#0f172a">
+    <rect x="30" y="30" width="1140" height="460" rx="16" fill="#e2e8f0"/>
+    <text x="56" y="64" font-size="16" font-weight="650">Host (on AWS: EC2 for judges only, IMDSv2 hop limit 1)</text>
+
+    <rect x="56" y="84" width="1088" height="380" rx="14" fill="#ccfbf1"/>
+    <text x="80" y="116" font-size="16" font-weight="650">Judge worker container: uid 10001, unprivileged</text>
+    <g font-size="13" fill="#134e4a">
+      <text x="80" y="140">cap_drop ALL  ·  no-new-privileges  ·  read-only root  ·  seccomp: Docker default plus namespace calls</text>
+      <text x="80" y="160">network: the API and Redis only  ·  secrets: JUDGE_TOKEN, REDIS_URL  ·  pids and memory limits</text>
+    </g>
+
+    <rect x="80" y="182" width="300" height="250" rx="12" fill="#f0fdfa"/>
+    <text x="100" y="212" font-size="15" font-weight="650">Outside every sandbox</text>
+    <g font-size="13" fill="#334155">
+      <text x="100" y="240">/opt/venv: the worker</text>
+      <text x="100" y="262">/var/cache/codejudge: test packages</text>
+      <text x="100" y="284">the expected answers</text>
+      <text x="100" y="306">the checker comparison</text>
+      <text x="100" y="328">wait4: CPU time, peak memory</text>
+      <text x="100" y="350">the program's output file</text>
+    </g>
+
+    <rect x="410" y="182" width="710" height="250" rx="12" fill="#0f766e"/>
+    <text x="434" y="212" font-size="15" font-weight="650" fill="#f0fdfa">nsjail, one per run: compile, each test, each checker</text>
+    <g font-size="13" fill="#ccfbf1">
+      <text x="434" y="240">namespaces: user (uid 65534), PID, network (no route), mount, IPC, UTS</text>
+      <text x="434" y="262">mounts: /usr /lib /bin read-only, the box, a private /tmp; no /proc, no /etc/shadow</text>
+      <text x="434" y="284">rlimits: CPU, address space, processes, file size, open files, stack; wall clock</text>
+      <text x="434" y="306">syscall filter: unshare, mount, ptrace, bpf, io_uring, keyrings refused; clone3 ENOSYS</text>
+      <text x="434" y="328">stdin: this test's input only  ·  one CPU  ·  first to be killed under memory pressure</text>
+    </g>
+    <rect x="434" y="350" width="660" height="60" rx="10" fill="#134e4a"/>
+    <text x="764" y="386" text-anchor="middle" font-size="15" font-weight="650" fill="#99f6e4">the submitted program</text>
+  </g>
+</svg>

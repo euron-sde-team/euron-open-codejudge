@@ -1,0 +1,43 @@
+# The judge in its real image: every verdict in Python, C++, Java and JavaScript, and the
+# hostile-code suite (escape attempts, fork and memory bombs, output floods), run with
+# exactly the hardening production gives the judge workers (no capabilities, no new
+# privileges, the judge seccomp profile, read-only root, no network).
+name: judge
+
+on:
+  push:
+    branches: [main]
+    paths: ["apps/api/**", "infra/docker/judge*", ".github/workflows/judge.yml"]
+  pull_request:
+    paths: ["apps/api/**", "infra/docker/judge*", ".github/workflows/judge.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  judge:
+    name: verdicts and hostile code in the judge image
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the judge test image
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/api
+          file: infra/docker/judge.Dockerfile
+          target: judge-test
+          load: true
+          tags: codejudge-judge-test:local
+          cache-from: type=gha,scope=judge-test
+          cache-to: type=gha,mode=max,scope=judge-test
+      - name: Judge tests, hardened as in production
+        run: |
+          docker run --rm --cap-drop ALL --security-opt no-new-privileges \
+            --security-opt seccomp="$PWD/infra/docker/judge-seccomp.json" --read-only \
+            --tmpfs /tmp:exec,size=1g,uid=10001,gid=10001 \
+            --tmpfs /var/cache/codejudge:size=1g,uid=10001,gid=10001 \
+            --pids-limit 512 --memory 3g --network none -e PYTHONDONTWRITEBYTECODE=1 \
+            -v "$PWD/apps/api/tests:/src/tests:ro" -v "$PWD/apps/api/pyproject.toml:/src/pyproject.toml:ro" \
+            -w /src codejudge-judge-test:local pytest -q -p no:cacheprovider tests/judge

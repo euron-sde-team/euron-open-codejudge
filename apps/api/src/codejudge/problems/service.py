@@ -16,6 +16,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from codejudge.audit.service import Actor, audit
+from codejudge.core.config import Settings
 from codejudge.core.container import Container
 from codejudge.core.contexts import Submitter
 from codejudge.core.contract import CheckerSpec, GroupSpec
@@ -678,6 +679,20 @@ async def remove_reference(
     await session.delete(r)
     audit(session, actor, "problem.reference_removed", "problem", p.id, name=r.name)
     await session.commit()
+
+
+def check_limits(settings: Settings, time_ms: int | None, memory_mb: int | None) -> None:
+    """The server's upper bounds apply to every problem, however it was made."""
+    if time_ms is not None and time_ms > settings.max_time_limit_ms:
+        raise AppError(
+            f"The time limit can be at most {settings.max_time_limit_ms} ms on this server",
+            code="limit_too_high",
+        )
+    if memory_mb is not None and memory_mb > settings.max_memory_limit_mb:
+        raise AppError(
+            f"The memory limit can be at most {settings.max_memory_limit_mb} MB on this server",
+            code="limit_too_high",
+        )
 
 
 def require_staff(who: Submitter) -> None:
