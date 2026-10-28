@@ -1,0 +1,1 @@
+public class Main { public static void main(String[] a) { java.io.PrintStream o = new java.io.PrintStream(new java.io.BufferedOutputStream(System.out, 1 << 16)); while (true) o.print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"); } }

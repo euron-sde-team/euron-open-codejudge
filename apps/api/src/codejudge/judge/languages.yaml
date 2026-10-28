@@ -1,0 +1,89 @@
+# Languages the judge can compile and run. Adding one: install its toolchain in the judge
+# image (infra/docker/judge.Dockerfile) and add an entry here. Placeholders in commands:
+#   {src}  the source file name     {mem}  the memory limit in MB
+#   {exe}  the compiled program     {stack} the stack limit in MB
+#
+# memory_mode decides how the memory limit is enforced:
+#   address  RLIMIT_AS caps the address space (exact; for programs that do not reserve
+#            far more virtual memory than they use)
+#   rss      the runtime's own heap flag ({mem}) caps it, the peak resident memory is
+#            checked after the run, and the worker container's memory limit is the
+#            backstop (for the JVM and V8, which reserve gigabytes of address space)
+# time_factor multiplies the problem's time limit for this language (1.0: the same limit
+# for everyone; raise it to give slower runtimes more time).
+
+python3:
+  name: Python 3
+  source: main.py
+  compile: ["/usr/bin/python3", "-c", "import ast, sys; ast.parse(open(sys.argv[1], 'rb').read(), sys.argv[1])", "{src}"]
+  run: ["/usr/bin/python3", "-S", "-B", "{src}"]
+  memory_mode: address
+  # The interpreter itself needs address space before the program allocates anything.
+  memory_overhead_mb: 32
+  time_factor: 1.0
+  monaco: python
+  template: |
+    import sys
+
+    def main() -> None:
+        data = sys.stdin.read().split()
+        # read the input, solve, print the answer
+
+    main()
+
+cpp17:
+  name: C++17 (GCC)
+  source: main.cpp
+  compile: ["/usr/bin/g++", "-O2", "-std=gnu++17", "-pipe", "-o", "main", "{src}"]
+  exe: main
+  run: ["./main"]
+  memory_mode: address
+  memory_overhead_mb: 8
+  time_factor: 1.0
+  monaco: cpp
+  template: |
+    #include <bits/stdc++.h>
+    using namespace std;
+
+    int main() {
+        ios::sync_with_stdio(false);
+        cin.tie(nullptr);
+        // read the input, solve, print the answer
+        return 0;
+    }
+
+java21:
+  name: Java 21
+  source: Main.java
+  compile: ["/usr/bin/javac", "-J-Xmx512m", "-J-XX:+UseSerialGC", "-encoding", "UTF-8", "-d", ".", "{src}"]
+  run: ["/usr/bin/java", "-Xmx{mem}m", "-Xss{stack}m", "-XX:+UseSerialGC", "-XX:TieredStopAtLevel=1", "-XX:-UsePerfData", "-Xshare:auto", "-cp", ".", "Main"]
+  memory_mode: rss
+  # The JVM's own footprint (code cache, metaspace) counted on top of the heap.
+  memory_overhead_mb: 64
+  time_factor: 1.0
+  threads: 32
+  monaco: java
+  template: |
+    import java.io.*;
+    import java.util.*;
+
+    public class Main {
+        public static void main(String[] args) throws IOException {
+            BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
+            // read the input, solve, print the answer
+        }
+    }
+
+javascript:
+  name: JavaScript (Node.js)
+  source: main.js
+  compile: ["/usr/bin/node", "--check", "{src}"]
+  run: ["/usr/bin/node", "--max-old-space-size={mem}", "--stack-size=65500", "{src}"]
+  memory_mode: rss
+  memory_overhead_mb: 48
+  time_factor: 1.0
+  threads: 16
+  monaco: javascript
+  template: |
+    const data = require("fs").readFileSync(0, "utf8").trim().split(/\s+/);
+    // read the input, solve, print the answer
