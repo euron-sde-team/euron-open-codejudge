@@ -7,10 +7,10 @@ sample only, so its output comes back for inspection.
 from __future__ import annotations
 
 import pytest
-from tests.judge.conftest import PROGRAMS, job, make_package, source
 
 from codejudge.core.contract import GroupSpec, Verdict
 from codejudge.judge.runner import Judge
+from tests.judge.conftest import PROGRAMS, job, make_package, source
 
 SAMPLE = {"sample/1": ("1 2\n", "done\n")}
 

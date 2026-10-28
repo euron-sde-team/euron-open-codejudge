@@ -67,6 +67,11 @@ async def admit(
         if not can_practice(p, who):
             raise NotFoundError("Problem not found")
         return Admission()
+    if context == "reference":
+        # A setter's own solution, judged to check the tests before publishing.
+        if not who.is_staff:
+            raise NotFoundError("Problem not found")
+        return Admission()
     policy = contexts.policy(context)
     if policy is None:
         raise AppError(f"Unknown submission context {context!r}", code="unknown_context")

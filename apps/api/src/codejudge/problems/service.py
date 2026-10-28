@@ -514,7 +514,11 @@ async def import_package(
     )
     session.add(p)
     await session.flush()
+    # The judged package holds tests and checker only: reference solutions live in their
+    # own rows (and go back into the package on export).
+    references, pkg.references = pkg.references, []
     await _store_version(container, session, p, pkg, actor, "imported")
+    pkg.references = references
     known = set(language_registry.registry())
     for name, language, source in pkg.references:
         if language in known:

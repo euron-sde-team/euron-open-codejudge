@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import pytest
-from tests.judge.conftest import job, source
 
 from codejudge.core.contract import Verdict
 from codejudge.judge.runner import Judge
+from tests.judge.conftest import job, source
 
 LANGUAGES = ["python3", "cpp17", "java21", "javascript"]
 CASES = [
