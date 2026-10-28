@@ -240,7 +240,6 @@ async def test_large_tests_upload_for_staff_but_not_anonymously(stack: Stack) ->
             pass
 
 
-
 @pytest.mark.parametrize("settings_overrides", [{"submit_rpm": 2}])
 async def test_submitting_too_fast_is_a_429_with_retry_after(stack: Stack) -> None:
     await make_problem(stack)
