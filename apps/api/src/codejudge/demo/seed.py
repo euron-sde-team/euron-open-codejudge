@@ -454,11 +454,12 @@ async def run() -> None:
             "duration_minutes": 60,
             "problems": [{"problem": "pair-sum", "points": 40}, {"problem": "word-frequency", "points": 30}, {"problem": "rotate-matrix", "points": 30}],
         })  # fmt: skip
-        invited = await interviewer.call(
+        result = await interviewer.call(
             "POST",
             f"/api/v1/assessments/{screen['id']}/invitations",
             {"candidates": [{"email": e, "name": n} for n, e in CANDIDATES]},
         )
+        invited = result["invitations"]
         await take_assessment(screen, invited)
         revoke = next((i for i in invited if i["email"] == CANDIDATES[2][1]), None)
         if revoke:
