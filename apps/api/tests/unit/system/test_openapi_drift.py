@@ -7,7 +7,7 @@ from pathlib import Path
 
 from codejudge.openapi import spec, to_yaml
 
-DOC = Path(__file__).resolve().parents[4] / "docs/api/openapi.yaml"
+DOC = Path(__file__).resolve().parents[5] / "docs/api/openapi.yaml"
 
 
 def test_the_committed_openapi_document_matches_the_app() -> None:
