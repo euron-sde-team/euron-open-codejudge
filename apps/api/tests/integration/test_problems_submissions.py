@@ -238,3 +238,15 @@ async def test_large_tests_upload_for_staff_but_not_anonymously(stack: Stack) ->
             assert resp.status_code == 413
         except httpx.TransportError:
             pass
+
+
+
+@pytest.mark.parametrize("settings_overrides", [{"submit_rpm": 2}])
+async def test_submitting_too_fast_is_a_429_with_retry_after(stack: Stack) -> None:
+    await make_problem(stack)
+    student = await stack.user()
+    body = {"problem": "sum", "language": "python3", "source": AC}
+    codes = [(await student.post("/api/v1/submissions", json=body)) for _ in range(3)]
+    assert [r.status_code for r in codes[:2]] == [202, 202]
+    assert codes[2].status_code == 429 and int(codes[2].headers["retry-after"]) >= 1
+    assert codes[2].json()["error"]["code"] == "rate_limited"

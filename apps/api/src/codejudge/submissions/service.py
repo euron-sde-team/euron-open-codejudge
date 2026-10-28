@@ -30,7 +30,7 @@ from codejudge.core.contract import (
     TestSpec,
     Verdict,
 )
-from codejudge.core.errors import AppError, NotFoundError
+from codejudge.core.errors import AppError, NotFoundError, RateLimitedError
 from codejudge.judge import languages as language_registry
 from codejudge.problems.models import Problem, ProblemVersion, ReferenceSolution
 from codejudge.problems.service import can_practice
@@ -100,9 +100,8 @@ async def _rate_limit(container: Container, who: Submitter) -> None:
     key = f"submit:{who.user_id or who.candidate_id}"
     decision = await container.kv.hit(key, container.settings.submit_rpm)
     if not decision.allowed:
-        raise AppError(
+        raise RateLimitedError(
             "You are submitting too fast. Wait a few seconds and try again",
-            code="rate_limited",
             headers={"retry-after": str(max(1, int(decision.retry_after_s)))},
         )
 

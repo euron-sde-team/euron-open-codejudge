@@ -87,7 +87,12 @@ class Client:
 
 async def sign_in(email: str, password: str, name: str) -> Client:
     http = httpx.AsyncClient(base_url=API, timeout=120, headers=CSRF)
-    resp = await http.post("/api/v1/auth/login", json={"email": email, "password": password})
+    # Many sign-ins from one address trip the login rate limit: wait as it says.
+    for _ in range(30):
+        resp = await http.post("/api/v1/auth/login", json={"email": email, "password": password})
+        if resp.status_code != 429:
+            break
+        await asyncio.sleep(float(resp.headers.get("retry-after", "5")))
     resp.raise_for_status()
     http.headers["authorization"] = f"Bearer {resp.json()['session_token']}"
     return Client(http, name)
