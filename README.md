@@ -149,36 +149,36 @@ write a problem, submit a solution and get a trustworthy verdict in minutes.
 | **Classes** | Join codes, assignments, late policies (accept, penalty, refuse), extensions, gradebook CSV |
 | **Interviews** | Email invitations, one-time links, timers, paste and tab-away signals, reports |
 | **Also** | Plagiarism (winnowing), analytics, optional AI hints, Kattis import and export, audit log |
-| **Infrastructure** | 11 Terraform modules, 3 environments; the full AWS stack (NUMBER_PENDING(tf resources) resources) applied end to end against Floci |
-| **Tests** | NUMBER_PENDING(test summary: unit API, unit web, integration, judge, e2e) |
+| **Infrastructure** | 11 Terraform modules, 3 environments; the full AWS stack (198 resources) applied end to end against Floci |
+| **Tests** | 136 API unit, 83 web unit, 90 integration, 41 judge (in the hardened judge image), 14 browser end-to-end and 3 acceptance tests against the real judge workers |
 | **License** | MIT |
 
 ## 🖼️ Screenshots
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/assets/screenshots/01-problems.png" alt="Problems"><br><sub><b>Problems.</b> Search, tags, difficulty, your solved marks and acceptance. NUMBER_PENDING(screenshot)</sub></td>
-    <td width="50%"><img src="docs/assets/screenshots/02-solve.png" alt="Solve a problem"><br><sub><b>Solve.</b> The statement beside the editor; run on the samples, submit, and watch the verdict arrive test by test. NUMBER_PENDING(screenshot)</sub></td>
+    <td width="50%"><img src="docs/assets/screenshots/01-problems.png" alt="Problems"><br><sub><b>Problems.</b> Search, tags, difficulty, your solved marks and acceptance.</sub></td>
+    <td width="50%"><img src="docs/assets/screenshots/02-solve.png" alt="Solve a problem"><br><sub><b>Solve.</b> The statement beside the editor; run on the samples, submit, and watch the verdict arrive test by test.</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/assets/screenshots/03-submission.png" alt="Submission"><br><sub><b>Submission.</b> Verdict, score, time and memory per test; outputs for samples only. NUMBER_PENDING(screenshot)</sub></td>
-    <td><img src="docs/assets/screenshots/04-scoreboard.png" alt="Scoreboard"><br><sub><b>Scoreboard.</b> ICPC or IOI, with first solves and the freeze. NUMBER_PENDING(screenshot)</sub></td>
+    <td><img src="docs/assets/screenshots/03-submission.png" alt="Submission"><br><sub><b>Submission.</b> Verdict, score, time and memory per test; outputs for samples only.</sub></td>
+    <td><img src="docs/assets/screenshots/04-scoreboard.png" alt="Scoreboard"><br><sub><b>Scoreboard.</b> ICPC or IOI, with first solves and the freeze.</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/assets/screenshots/05-gradebook.png" alt="Gradebook"><br><sub><b>Gradebook.</b> Best marks per student and problem, late penalties applied, CSV export. NUMBER_PENDING(screenshot)</sub></td>
-    <td><img src="docs/assets/screenshots/06-interview-report.png" alt="Interview report"><br><sub><b>Interview report.</b> Scores, every submission with code, and the timeline of signals. NUMBER_PENDING(screenshot)</sub></td>
+    <td><img src="docs/assets/screenshots/05-gradebook.png" alt="Gradebook"><br><sub><b>Gradebook.</b> Best marks per student and problem, late penalties applied, CSV export.</sub></td>
+    <td><img src="docs/assets/screenshots/06-interview-report.png" alt="Interview report"><br><sub><b>Interview report.</b> Scores, every submission with code, and the timeline of signals.</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/assets/screenshots/07-problem-editor.png" alt="Problem editor"><br><sub><b>Problem editor.</b> Statement, tests and groups, checker, reference solutions and what still blocks publishing. NUMBER_PENDING(screenshot)</sub></td>
-    <td><img src="docs/assets/screenshots/08-plagiarism.png" alt="Plagiarism"><br><sub><b>Plagiarism.</b> Similar pairs side by side, matched lines highlighted. NUMBER_PENDING(screenshot)</sub></td>
+    <td><img src="docs/assets/screenshots/07-problem-editor.png" alt="Problem editor"><br><sub><b>Problem editor.</b> Statement, tests and groups, checker, reference solutions and what still blocks publishing.</sub></td>
+    <td><img src="docs/assets/screenshots/08-plagiarism.png" alt="Plagiarism"><br><sub><b>Plagiarism.</b> Similar pairs side by side, matched lines highlighted.</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/assets/screenshots/09-analytics.png" alt="Analytics"><br><sub><b>Analytics.</b> Submissions, verdict mix and acceptance by difficulty. NUMBER_PENDING(screenshot)</sub></td>
-    <td><img src="docs/assets/screenshots/10-candidate.png" alt="Candidate view"><br><sub><b>Candidate.</b> A timed assessment from a one-time link, nothing else in sight. NUMBER_PENDING(screenshot)</sub></td>
+    <td><img src="docs/assets/screenshots/09-analytics.png" alt="Analytics"><br><sub><b>Analytics.</b> Submissions, verdict mix and acceptance by difficulty.</sub></td>
+    <td><img src="docs/assets/screenshots/10-candidate.png" alt="Candidate view"><br><sub><b>Candidate.</b> A timed assessment from a one-time link, nothing else in sight.</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/assets/screenshots/11-dark-mode.png" alt="Dark mode"><br><sub><b>Dark mode.</b> NUMBER_PENDING(screenshot)</sub></td>
-    <td align="center"><img src="docs/assets/screenshots/12-mobile.png" alt="Phone" width="45%"><br><sub><b>Phone.</b> Responsive down to phone width. NUMBER_PENDING(screenshot)</sub></td>
+    <td><img src="docs/assets/screenshots/11-dark-mode.png" alt="Dark mode"><br><sub><b>Dark mode.</b></sub></td>
+    <td align="center"><img src="docs/assets/screenshots/12-mobile.png" alt="Phone" width="45%"><br><sub><b>Phone.</b> Responsive down to phone width.</sub></td>
   </tr>
 </table>
 
@@ -403,16 +403,17 @@ Report vulnerabilities privately: see [SECURITY.md](SECURITY.md). Details:
 
 | Suite | What it proves | Run |
 | --- | --- | --- |
-| Unit (NUMBER_PENDING(api unit) API, NUMBER_PENDING(web unit) web) | Contest scoring, checkers, packages, winnowing, hint prompts without hidden data, grading, mail, settings; web logic and components | `make test` |
-| Integration (NUMBER_PENDING(integration)) | The real API over HTTP against Postgres and Redis with a judge on the real job stream: verdicts applied once, stale results refused, the publish gate, hidden tests never returned, import and export round trips, contests, classes, assessments, plagiarism, analytics, hints off and on | `make test-integration` |
-| Judge (NUMBER_PENDING(judge)) | Inside the judge image, hardened as in production: every verdict in four languages, and hostile programs (network, secrets, writes, syscalls, fork and thread bombs, kill all, a compiler bomb) contained, then a correct verdict | `make test-judge` |
+| Unit (136 API, 83 web) | Contest scoring, checkers, packages, winnowing, hint prompts without hidden data, grading, mail, settings; web logic and components | `make test` |
+| Integration (90) | The real API over HTTP against Postgres and Redis with a judge on the real job stream: verdicts applied once, stale results refused, the publish gate, hidden tests never returned, import and export round trips, contests, classes, assessments, plagiarism, analytics, hints off and on | `make test-integration` |
+| Judge (41) | Inside the judge image, hardened as in production: every verdict in four languages, and hostile programs (network, secrets, writes, syscalls, fork and thread bombs, kill all, a compiler bomb) contained, then a correct verdict | `make test-judge` |
+| Acceptance on the stack (3) | With the real judge workers: the five-minute path gives real verdicts; a burst of 32 submissions from 8 people, fork bombs and network probes included, gets every verdict right; a worker killed mid-job loses nothing and counts once | `make test-stack` |
 | Option matrix | The integration suite under every key and storage backend (local or KMS, disk or S3) | `make test-matrix` |
-| Browser (NUMBER_PENDING(e2e)) | NUMBER_PENDING(e2e journeys) | `make e2e` |
+| Browser (14) | Playwright against the running stack and the real judge: sign-in, the five-minute path (create, test, publish, solve), a contest with its scoreboard and clarifications, a class with a gradebook and CSV, an interview from the emailed link to the report, import and export, plagiarism and analytics, admin settings | `make e2e` |
 | Browser QA | Every page in light and dark at desktop and phone width: no console errors, failed requests, broken images or overflow | `make qa` |
 | Infrastructure | `terraform validate` (3 environments), tflint, checkov, sanitization (secrets, account ids, em and en dashes) | `make tf-validate tf-lint tf-security sanitize` |
 | AWS on Floci | The full production environment plans, applies, converges and destroys against an AWS API | `make tf-aws-on-floci` |
 
-Line coverage of `apps/api/src`: NUMBER_PENDING(coverage) (the CI floor is 85%).
+Line coverage of `apps/api/src`: 90.8% (the CI floor is 85%).
 [Testing guide](docs/guides/testing.md)
 
 ## 📖 Documentation
@@ -478,7 +479,14 @@ Settings with any OpenAI-compatible endpoint, including a local model.
 <details>
 <summary><b>How many submissions can it judge?</b></summary>
 
-Each judge worker judges one submission at a time, so throughput grows with workers. NUMBER_PENDING(judge throughput measurement)
+Each judge worker judges one submission at a time, so throughput grows with workers. Measured on the local stack (Docker Desktop on an Apple
+silicon laptop, two workers, two CPUs each): 60 accepted submissions, 30 in C++ and 30 in
+Python, each compiled and run on a sample and 5 hidden tests, were all judged 4.1 s after the
+first was sent, about 870 a minute. One submission took 173 ms in C++ (154 to 249) and 82 ms
+in Python (56 to 194), compile and checking included. Real problems with large tests take
+longer, because time goes into running the tests: budget by your problems' time limits times
+their number of tests, and add workers (`CJ_JUDGES`, or the Auto Scaling group on AWS) as
+the queue depth on the System page grows.
 </details>
 
 <details>

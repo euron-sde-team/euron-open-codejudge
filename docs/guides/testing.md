@@ -51,9 +51,9 @@ databases and Redis indexes can run at once.
 
 | Suite | Tests |
 | --- | --- |
-| API unit | NUMBER_PENDING(api unit tests) |
-| API integration | NUMBER_PENDING(api integration tests) |
-| Judge (in the judge image) | NUMBER_PENDING(judge tests) |
-| Web unit | NUMBER_PENDING(web unit tests) |
-| Browser end-to-end | NUMBER_PENDING(e2e tests) |
-| Coverage of `apps/api/src` | NUMBER_PENDING(coverage percent) |
+| API unit | 136 |
+| API integration | 90 |
+| Judge (in the judge image) | 41 |
+| Web unit | 83 |
+| Browser end-to-end | 14 |
+| Coverage of `apps/api/src` | 90.8% |

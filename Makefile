@@ -26,7 +26,7 @@ JUDGE_HARDENING := --cap-drop ALL --security-opt no-new-privileges \
   --tmpfs /var/cache/codejudge:size=1g,uid=10001,gid=10001 \
   --pids-limit 512 --memory 3g --network none
 
-.PHONY: backup restore screenshots help env up up-aws down logs ps demo admin test test-integration test-judge test-matrix e2e qa \
+.PHONY: backup restore screenshots test-stack help env up up-aws down logs ps demo admin test test-integration test-judge test-matrix e2e qa \
         lint typecheck build openapi sanitize tf-fmt tf-validate tf-lint tf-security tf-aws-on-floci \
         aws-deploy aws-migrate aws-admin aws-plan clean
 
@@ -97,6 +97,9 @@ test: ## Unit tests: API (pytest) and web (vitest). No database, no network
 test-integration: ## API integration tests against real Postgres and Redis (started if needed)
 	@scripts/test-db.sh
 	$(API) uv run pytest tests/unit tests/integration -q --cov=codejudge --cov-report=term-missing:skip-covered --cov-fail-under=85
+
+test-stack: ## Acceptance tests against the running stack with the real judges (make up first)
+	$(API) CJ_STACK=1 uv run pytest tests/stack -q
 
 test-judge: ## Judge tests (verdicts in 4 languages, hostile code) inside the judge image, hardened as in production
 	docker build -f infra/docker/judge.Dockerfile --target judge-test --build-arg APT_MIRROR=$(CJ_APT_MIRROR) -t $(JUDGE_TEST_IMAGE) apps/api
