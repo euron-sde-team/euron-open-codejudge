@@ -33,7 +33,9 @@ jobs:
       - run: uv run ruff check src tests
       - run: uv run ruff format --check src tests
       - run: uv run mypy --strict src
-      - run: uv run pytest tests/unit -q --cov=codejudge --cov-fail-under=85
+      # Unit tests only (no database). The 85% coverage floor applies to unit and
+      # integration together, in workflows-full/ci.yml and make test-integration.
+      - run: uv run pytest tests/unit -q
 
   web:
     name: web (eslint, tsc, vitest, build)
