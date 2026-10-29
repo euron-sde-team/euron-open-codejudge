@@ -7,11 +7,12 @@ const cell = (over: Partial<ScoreCell>): ScoreCell => ({ label: "A", solved: fal
 
 describe("ICPC scoreboard cells", () => {
   it("shows solves with wrong tries and the minute", () => {
-    expect(cellView("icpc", cell({ solved: true, attempts: 1, minute: 12 }))).toMatchObject({ text: "+", sub: "12'", tone: "solved" });
-    expect(cellView("icpc", cell({ solved: true, attempts: 3, minute: 47 }))).toMatchObject({ text: "+2", sub: "47'" });
+    // ICPC attempts are the rejected tries before the accept: a first-try solve has none.
+    expect(cellView("icpc", cell({ solved: true, attempts: 0, minute: 12 }))).toMatchObject({ text: "+", sub: "12'", tone: "solved" });
+    expect(cellView("icpc", cell({ solved: true, attempts: 2, minute: 47 }))).toMatchObject({ text: "+2", sub: "47'" });
   });
   it("marks the first solve of a problem", () => {
-    const v = cellView("icpc", cell({ solved: true, attempts: 1, minute: 5, first: true }));
+    const v = cellView("icpc", cell({ solved: true, attempts: 0, minute: 5, first: true }));
     expect(v.tone).toBe("first");
     expect(v.label).toMatch(/first to solve/);
   });
@@ -23,6 +24,8 @@ describe("ICPC scoreboard cells", () => {
   it("leaves untouched problems empty", () => {
     expect(cellView("icpc", undefined).tone).toBe("empty");
     expect(cellView("icpc", cell({})).tone).toBe("empty");
+    // A solve on the first try is never shown as untouched.
+    expect(cellView("icpc", cell({ solved: true, attempts: 0, minute: 3 })).tone).toBe("solved");
   });
 });
 

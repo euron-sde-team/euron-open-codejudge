@@ -78,6 +78,7 @@ export type AssessmentUpdate = S["AssessmentUpdate"];
 export type Invitation = S["InvitationOut"];
 export type InviteResult = S["InviteResult"];
 export type CandidateView = S["CandidateView"];
+export type CandidatePreview = S["CandidatePreview"];
 export type CandidateReport = S["Report"];
 
 export type PlagiarismRun = S["RunOut"];

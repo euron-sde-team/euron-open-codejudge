@@ -14,6 +14,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SimpleSelect } from "@/components/ui/select";
 import { VerdictChip } from "@/components/verdict-chip";
+import { LanguageName } from "@/components/language-name";
 import { usePermissions } from "@/features/auth/api";
 import { useUsers } from "@/features/users/api";
 import { errorMessage } from "@/lib/api/errors";
@@ -242,7 +243,7 @@ function Row({ s, staff, everyone, selected, onToggle }: { s: Submission; staff:
         {s.late && <span className="ml-1.5 text-[11.5px] font-semibold text-warning">Late</span>}
       </td>
       {everyone && <td className="max-w-[160px] truncate px-3 py-2.5 text-muted-foreground">{s.user_name ?? "Candidate"}</td>}
-      <td className="px-3 py-2.5 text-muted-foreground">{s.language}</td>
+      <td className="px-3 py-2.5 text-muted-foreground"><LanguageName id={s.language} /></td>
       <td className="px-3 py-2.5">
         <VerdictChip verdict={done ? s.verdict : s.status === "judging" ? "JUDGING" : "PENDING"} />
       </td>

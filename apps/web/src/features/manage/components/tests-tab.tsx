@@ -14,6 +14,7 @@ import { Input, Textarea } from "@/components/ui/input";
 import { Field, FieldError } from "@/components/ui/label";
 import { SimpleSelect } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { LanguageName } from "@/components/language-name";
 import { useLanguages } from "@/features/problems/api";
 import { errorMessage } from "@/lib/api/errors";
 import type { CheckerSpec, ProblemAdmin, Version } from "@/lib/api/types";
@@ -124,7 +125,7 @@ function CheckerSummary({ checker }: { checker: CheckerSpec }) {
           (absolute {checker.float_abs}, relative {checker.float_rel})
         </span>
       )}
-      {kind === "custom" && checker.language && <span>({checker.language})</span>}
+      {kind === "custom" && checker.language && <span>(<LanguageName id={checker.language} />)</span>}
       <Hint term="checker" />
     </p>
   );

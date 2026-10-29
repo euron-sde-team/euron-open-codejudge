@@ -20,13 +20,17 @@ import { getCandidateToken } from "@/lib/candidate";
 import { cn } from "@/lib/cn";
 import { formatScore, formatTime } from "@/lib/verdicts";
 
-import { openCandidateSession, recordCandidateEvent, useCandidateFinish, useCandidateView } from "../api";
+import { openCandidateSession, recordCandidateEvent, useCandidateFinish, useCandidatePreview, useCandidateView } from "../api";
 
 /** The candidate's whole experience: no app navigation, nothing outside the assessment. */
 export function TakeScreen() {
   const [token, setToken] = React.useState<string | null | undefined>(undefined);
   React.useEffect(() => setToken(getCandidateToken()), []);
-  const view = useCandidateView(!!token);
+  // The preview starts nothing; the assessment itself is read only once it has started
+  // (asking for it before then is refused, which the browser would log as an error).
+  const preview = useCandidatePreview(token);
+  const started = !!preview.data && preview.data.status !== "invited";
+  const view = useCandidateView(!!token && started);
   const client = useQueryClient();
   const [starting, setStarting] = React.useState(false);
   const [startError, setStartError] = React.useState<string | null>(null);
@@ -55,10 +59,20 @@ export function TakeScreen() {
         text="This page works from the personal link in your invitation email. Open that link in this browser to continue."
       />
     );
+  else if (preview.isPending) body = <Skeleton className="mx-auto mt-16 h-48 w-full max-w-xl" />;
+  else if (preview.isError)
+    body = (
+      <Closing
+        icon={TimerOffIcon}
+        title="This link can no longer be used"
+        text={`${errorMessage(preview.error)} If you think this is a mistake, reply to your invitation email.`}
+      />
+    );
+  else if (!view.data && !started) body = <BeforeStart token={token} onStart={() => void start()} starting={starting} error={startError} />;
   else if (view.isPending) body = <Skeleton className="mx-auto mt-16 h-48 w-full max-w-xl" />;
   else if (view.isError) {
     const err = view.error;
-    if (err instanceof ApiError && err.code === "not_started") body = <BeforeStart onStart={() => void start()} starting={starting} error={startError} />;
+    if (err instanceof ApiError && err.code === "not_started") body = <BeforeStart token={token} onStart={() => void start()} starting={starting} error={startError} />;
     else
       body = (
         <Closing
@@ -74,7 +88,7 @@ export function TakeScreen() {
     else if (v.status === "expired")
       body = <Closing icon={TimerOffIcon} title="Time is up" text="The assessment has ended. Everything you submitted before the deadline counts. You can close this tab now." />;
     else if (v.status === "revoked") body = <Closing icon={LockKeyholeIcon} title="This invitation was withdrawn" text="Reply to your invitation email if you have questions." />;
-    else if (v.status === "invited") body = <BeforeStart onStart={() => void start()} starting={starting} error={startError} />;
+    else if (v.status === "invited") body = <BeforeStart token={token} onStart={() => void start()} starting={starting} error={startError} />;
     else body = <Exam view={v} onElapsed={() => void view.refetch()} />;
   }
 
@@ -104,10 +118,41 @@ function Closing({ icon: Icon, title, text }: { icon: typeof ClockIcon; title: s
   );
 }
 
-function BeforeStart({ onStart, starting, error }: { onStart: () => void; starting: boolean; error: string | null }) {
+function BeforeStart({
+  token,
+  onStart,
+  starting,
+  error,
+}: {
+  token: string;
+  onStart: () => void;
+  starting: boolean;
+  error: string | null;
+}) {
+  const preview = useCandidatePreview(token);
+  const p = preview.data;
   return (
-    <div className="surface mx-auto mt-12 max-w-xl space-y-4 px-8 py-8">
-      <h1 className="text-xl font-semibold">Before you start</h1>
+    <div className="surface mx-auto mt-12 max-w-xl space-y-4 px-8 py-8" data-qa="before-start">
+      {p ? (
+        <div className="space-y-1">
+          <p className="text-[13px] text-muted-foreground">Hello {p.name.split(" ")[0]}, this is your assessment</p>
+          <h1 className="text-xl font-semibold">{p.title}</h1>
+          <p className="flex flex-wrap gap-x-4 text-[13px] text-muted-foreground">
+            <span>{p.duration_minutes} minutes</span>
+            <span>
+              {p.problems} {p.problems === 1 ? "problem" : "problems"}, {formatScore(p.total_points, null)} points
+            </span>
+            {p.closes_at && <span>Closes {new Date(p.closes_at).toLocaleString()}</span>}
+          </p>
+        </div>
+      ) : (
+        <h1 className="text-xl font-semibold">Before you start</h1>
+      )}
+      {p?.instructions_md && (
+        <div className="rounded-lg bg-muted/60 px-4 py-3 text-[13.5px]">
+          <Markdown source={p.instructions_md} />
+        </div>
+      )}
       <ul className="list-disc space-y-1.5 pl-5 text-[13.5px] text-muted-foreground">
         <li>This is a timed coding assessment. The clock starts when you press Start and does not pause.</li>
         <li>Solve the problems in the browser. Run your code on the samples as often as you like; submit when you are ready. Your best submission per problem counts.</li>
@@ -119,7 +164,7 @@ function BeforeStart({ onStart, starting, error }: { onStart: () => void; starti
           {error}
         </p>
       )}
-      <Button size="lg" className="w-full" disabled={starting} onClick={onStart}>
+      <Button size="lg" className="w-full" disabled={starting} onClick={onStart} data-qa="start-assessment">
         <ClockIcon />
         {starting ? "Starting..." : "Start the assessment"}
       </Button>

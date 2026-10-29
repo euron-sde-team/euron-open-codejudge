@@ -20,6 +20,7 @@ import { usePermissions } from "@/features/auth/api";
 import { download } from "@/lib/api/client";
 import { ApiError, errorMessage } from "@/lib/api/errors";
 import type { ProblemAdmin } from "@/lib/api/types";
+import { useTabParam } from "@/lib/use-tab-param";
 
 import { useDeleteProblem, useProblemAdmin, usePublish, useRejudgeProblem } from "../api";
 import { DetailsTab } from "./details-tab";
@@ -29,11 +30,12 @@ import { TestsTab } from "./tests-tab";
 import { VersionsTab } from "./versions-tab";
 
 type Tab = "details" | "statement" | "tests" | "solutions" | "versions";
+const TABS: readonly Tab[] = ["statement", "tests", "solutions", "details", "versions"];
 
 export function ProblemEditorScreen({ id }: { id: string }) {
   const { user, staff } = usePermissions();
   const q = useProblemAdmin(id);
-  const [tab, setTab] = React.useState<Tab>("statement");
+  const [tab, setTab] = useTabParam<Tab>("statement", TABS);
 
   if (user && !staff) return <AdminOnly what="The problem editor" />;
   if (q.isPending) {
@@ -71,7 +73,7 @@ export function ProblemEditorScreen({ id }: { id: string }) {
         Problem editor
       </Link>
       <Header problem={p} />
-      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+      <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
         <TabsList>
           <TabsTrigger value="statement">Statement</TabsTrigger>
           <TabsTrigger value="tests">Tests</TabsTrigger>

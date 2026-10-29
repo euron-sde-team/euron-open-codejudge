@@ -212,10 +212,10 @@ function ProblemRow({ problem: p }: { problem: ProblemSummary }) {
         </span>
         {p.status === "draft" && <span className="hidden text-[11.5px] font-semibold text-warning sm:inline">Draft</span>}
         {d && <span className={`w-16 text-right text-[12.5px] font-semibold ${d.className}`}>{d.label}</span>}
-        <span className="tabular hidden w-24 text-right text-[12.5px] text-muted-foreground md:block" title="Accepted out of judged submissions">
+        <span className="tabular hidden w-28 whitespace-nowrap text-right text-[12.5px] text-muted-foreground md:block" title="Accepted out of judged submissions">
           {p.acceptance == null ? "No tries" : `${formatRatio(p.acceptance)} accepted`}
         </span>
-        <span className="tabular hidden w-20 text-right text-[12.5px] text-muted-foreground lg:block">
+        <span className="tabular hidden w-20 whitespace-nowrap text-right text-[12.5px] text-muted-foreground lg:block">
           {formatNumber(p.solvers_count)} solved
         </span>
       </Link>

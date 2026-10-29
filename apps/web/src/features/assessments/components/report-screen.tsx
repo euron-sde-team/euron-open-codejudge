@@ -37,6 +37,8 @@ export function timeline(report: Pick<CandidateReport, "submissions" | "events">
 }
 
 const EVENT_TEXT: Record<string, { label: string; icon: typeof EyeIcon }> = {
+  started: { label: "Started the assessment", icon: EyeIcon },
+  submitted: { label: "Finished the assessment", icon: EyeIcon },
   paste: { label: "Pasted into the editor", icon: ClipboardPasteIcon },
   tab_hidden: { label: "Left the tab", icon: EyeOffIcon },
   tab_visible: { label: "Came back to the tab", icon: EyeIcon },
@@ -84,7 +86,7 @@ export function ReportScreen({ assessmentId, invitationId }: { assessmentId: str
       </header>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Score" value={formatScore(r.total, r.total_points)} tone={r.total >= r.total_points ? "good" : "default"} />
-        <Stat label="Time used" value={r.minutes_used == null ? "n/a" : `${Math.round(r.minutes_used)} of ${r.duration_minutes} min`} />
+        <Stat label="Time used" value={r.minutes_used == null ? "n/a" : r.minutes_used < 1 ? `Under 1 of ${r.duration_minutes} min` : `${Math.round(r.minutes_used)} of ${r.duration_minutes} min`} />
         <Stat label="Submissions" value={r.submissions.length} />
         <Stat label="Signals" value={signals} detail="Pastes and tab switches" />
       </div>
@@ -124,7 +126,7 @@ export function ReportScreen({ assessmentId, invitationId }: { assessmentId: str
                     <span className="w-28 text-[12px] text-muted-foreground">{formatDateTime(item.at)}</span>
                     <SendIcon className="size-3.5 text-subtle" aria-hidden />
                     <span className="font-medium">{r.problems.find((p) => p.id === item.sub.problem_id)?.title ?? item.sub.problem_slug}</span>
-                    <span className="text-muted-foreground">{item.sub.language}</span>
+                    <span className="text-muted-foreground">{languages.data?.find((l) => l.id === item.sub.language)?.name ?? item.sub.language}</span>
                     <VerdictChip verdict={item.sub.verdict} />
                     <span className="tabular ml-auto text-muted-foreground">
                       {formatScore(item.sub.score, item.sub.max_score)}, {formatTime(item.sub.time_ms)}, {formatMemory(item.sub.memory_kb)}

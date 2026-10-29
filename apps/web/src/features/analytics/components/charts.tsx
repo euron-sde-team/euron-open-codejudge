@@ -51,8 +51,8 @@ export function DailyChart({ points, days, label = "Submissions per day" }: { po
                 );
               }}
             />
-            <Bar dataKey="accepted" stackId="s" fill={ACCEPTED} maxBarSize={22} />
-            <Bar dataKey="rejected" stackId="s" fill={REJECTED} radius={[3, 3, 0, 0]} maxBarSize={22} />
+            <Bar isAnimationActive={false} dataKey="accepted" stackId="s" fill={ACCEPTED} maxBarSize={22} />
+            <Bar isAnimationActive={false} dataKey="rejected" stackId="s" fill={REJECTED} radius={[3, 3, 0, 0]} maxBarSize={22} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -71,12 +71,12 @@ export function VerdictMixBar({ mix }: { mix: VerdictMix }) {
           <div key={s.verdict} style={{ width: `${s.share * 100}%`, background: verdictColor(s.verdict) }} />
         ))}
       </div>
-      <ul className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[12.5px] sm:grid-cols-4">
+      <ul className="flex flex-wrap gap-x-5 gap-y-1.5 text-[12.5px]">
         {slices.map((s) => (
-          <li key={s.verdict} className="flex items-center gap-1.5">
+          <li key={s.verdict} className="flex items-center gap-1.5 whitespace-nowrap">
             <span className="size-2.5 rounded-[3px]" style={{ background: verdictColor(s.verdict) }} aria-hidden />
             <span className="text-muted-foreground">{verdictSpec(s.verdict).label}</span>
-            <span className="tabular ml-auto font-semibold">{formatNumber(s.count)}</span>
+            <span className="tabular font-semibold">{formatNumber(s.count)}</span>
           </li>
         ))}
       </ul>

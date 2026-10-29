@@ -12,6 +12,7 @@ export function VerdictChip({ verdict, long = false, className }: { verdict: str
   const busy = verdict === "JUDGING" || verdict === "PENDING";
   const chip = (
     <span
+      data-verdict={verdict}
       className={cn(
         "inline-flex h-5 items-center gap-1 rounded-full px-2 text-[11px] leading-none font-semibold whitespace-nowrap",
         spec.className,

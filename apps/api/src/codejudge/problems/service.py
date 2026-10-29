@@ -402,7 +402,12 @@ def groups_for(tests: list[packages.Test], given: list[GroupSpec]) -> list[Group
     """Declared groups, plus any group the tests use: samples score 0, the remaining hidden
     groups share the points not yet assigned (100 in total by default)."""
     by_name = {g.name: g for g in given}
-    hidden = sorted({t.group for t in tests if not t.sample}, key=packages._natural)
+    used = {t.group for t in tests if not t.sample}
+    # Declared groups in the setter's order (subtask 1 before subtask 2, whatever their
+    # names), then any others the tests use, in natural order.
+    hidden = [g.name for g in given if g.name in used] + sorted(
+        used - by_name.keys(), key=packages._natural
+    )
     out: list[GroupSpec] = []
     if any(t.sample for t in tests):
         out.append(
@@ -435,7 +440,15 @@ async def create_version(
                 answer=t.answer.encode(),
             )
         )
-    tests.sort(key=lambda t: (not t.sample, packages._natural(t.name)))
+    # Samples first, then the hidden groups in the order the setter declared them.
+    declared = [g.name for g in data.groups]
+    tests.sort(
+        key=lambda t: (
+            not t.sample,
+            declared.index(t.group) if t.group in declared else len(declared),
+            packages._natural(t.name),
+        )
+    )
     checker = data.checker or CheckerSpec.model_validate(p.checker or {})
     if checker.kind == "custom" and checker.path is None:
         suffix = next(

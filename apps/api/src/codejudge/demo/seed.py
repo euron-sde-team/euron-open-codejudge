@@ -252,7 +252,10 @@ async def run() -> None:
         # Practice: real submissions, judged by the real judge.
         ids: list[tuple[Client, str]] = []
         for k, student in enumerate(students[:16]):
-            for p in rng.sample(PROBLEMS, 4 + k % 3):
+            # Coin Change is left to the plagiarism demo: there, only the planted copy and an
+            # independent solution exist, so the check shows exactly what it is for.
+            practice = [x for x in PROBLEMS if x.slug != "coin-change"]
+            for p in rng.sample(practice, 4 + k % 3):
                 if p.wrong and rng.random() < 0.55:
                     language, source = rng.choice(p.wrong)
                     s = await student.call(

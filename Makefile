@@ -26,7 +26,7 @@ JUDGE_HARDENING := --cap-drop ALL --security-opt no-new-privileges \
   --tmpfs /var/cache/codejudge:size=1g,uid=10001,gid=10001 \
   --pids-limit 512 --memory 3g --network none
 
-.PHONY: backup restore help env up up-aws down logs ps demo admin test test-integration test-judge test-matrix e2e qa \
+.PHONY: backup restore screenshots help env up up-aws down logs ps demo admin test test-integration test-judge test-matrix e2e qa \
         lint typecheck build openapi sanitize tf-fmt tf-validate tf-lint tf-security tf-aws-on-floci \
         aws-deploy aws-migrate aws-admin aws-plan clean
 
@@ -112,6 +112,9 @@ e2e: ## Browser end-to-end tests (Playwright) against the running stack (make up
 
 qa: ## Browser QA sweep (Puppeteer): every page, light and dark, desktop and phone
 	cd scripts/qa && pnpm install --frozen-lockfile && QA_PASSWORD='$(DEMO_PW)' node qa.mjs
+
+screenshots: ## Curated screenshots (docs/assets/screenshots) and the tour GIF, from the seeded stack
+	cd scripts/qa && pnpm install --frozen-lockfile && QA_PASSWORD='$(DEMO_PW)' node screenshots.mjs && ./make-tour.sh
 
 build: ## Build the container images (CJ_APT_MIRROR speeds up the judge image on slow routes)
 	CJ_APT_MIRROR='$(CJ_APT_MIRROR)' $(FLOCI) build

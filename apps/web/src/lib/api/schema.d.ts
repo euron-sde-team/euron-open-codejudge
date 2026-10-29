@@ -41,6 +41,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who is signed in, if anyone
+         * @description For pages anyone may open (the problem list): a signed-out visitor is a normal
+         *     answer here (200 with no user), not an error. ``/me`` stays strict (401) for API
+         *     clients that require a session.
+         */
+        get: operations["current_session_api_v1_auth_session_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/me": {
         parameters: {
             query?: never;
@@ -1122,6 +1144,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/candidate/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Candidate Preview
+         * @description What the link is for, before starting: title, duration, instructions, window. A POST
+         *     so the token never lands in a URL or an access log.
+         */
+        post: operations["candidate_preview_api_v1_candidate_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/candidate/session": {
         parameters: {
             query?: never;
@@ -1811,6 +1854,33 @@ export interface components {
         Body_upload_package_api_v1_problems__problem_id__package_post: {
             /** File */
             file: string;
+        };
+        /**
+         * CandidatePreview
+         * @description Shown before the candidate starts: nothing here starts the clock.
+         */
+        CandidatePreview: {
+            /** Name */
+            name: string;
+            /** Title */
+            title: string;
+            /** Instructions Md */
+            instructions_md: string;
+            /** Duration Minutes */
+            duration_minutes: number;
+            /** Opens At */
+            opens_at: string | null;
+            /** Closes At */
+            closes_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "invited" | "started" | "submitted" | "expired" | "revoked";
+            /** Problems */
+            problems: number;
+            /** Total Points */
+            total_points: number;
         };
         /** CandidateProblem */
         CandidateProblem: {
@@ -2658,6 +2728,11 @@ export interface components {
             similarity: number;
             a: components["schemas"]["Side"];
             b: components["schemas"]["Side"];
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
             /** Source A */
             source_a: string;
             /** Source B */
@@ -3311,6 +3386,8 @@ export interface components {
              * Format: uuid
              */
             scope_id: string;
+            /** Scope Title */
+            scope_title?: string | null;
             /** Threshold */
             threshold: number;
             /**
@@ -3355,6 +3432,8 @@ export interface components {
              * Format: uuid
              */
             scope_id: string;
+            /** Scope Title */
+            scope_title?: string | null;
             /** Threshold */
             threshold: number;
             /**
@@ -3414,6 +3493,10 @@ export interface components {
             problems: components["schemas"]["ContestProblemOut"][];
             /** Rows */
             rows: components["schemas"]["RowOut"][];
+        };
+        /** SessionOut */
+        SessionOut: {
+            user: components["schemas"]["UserOut"] | null;
         };
         /** SettingsUpdate */
         SettingsUpdate: {
@@ -3888,6 +3971,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Ack"];
+                };
+            };
+        };
+    };
+    current_session_api_v1_auth_session_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionOut"];
                 };
             };
         };
@@ -6374,6 +6477,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Report"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    candidate_preview_api_v1_candidate_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CandidateSessionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CandidatePreview"];
                 };
             };
             /** @description Validation Error */

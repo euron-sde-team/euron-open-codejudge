@@ -19,6 +19,7 @@ import { Field, FieldError } from "@/components/ui/label";
 import { SimpleSelect } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VerdictChip } from "@/components/verdict-chip";
+import { LanguageName } from "@/components/language-name";
 import { usePermissions } from "@/features/auth/api";
 import { ApiError, errorMessage } from "@/lib/api/errors";
 import type { PlagiarismPairDetail, PlagiarismRun, PlagiarismScope } from "@/lib/api/types";
@@ -135,7 +136,8 @@ function RunRow({ r }: { r: PlagiarismRun }) {
         </Link>
       </td>
       <td className="px-3 py-2.5">
-        {SCOPE_LABEL[r.scope]} <span className="font-mono text-[11.5px] text-faint">{r.scope_id.slice(0, 8)}</span>
+        {SCOPE_LABEL[r.scope]}{" "}
+        {r.scope_title ? <span className="text-foreground">{r.scope_title}</span> : <span className="font-mono text-[11.5px] text-faint">{r.scope_id.slice(0, 8)}</span>}
       </td>
       <td className="px-3 py-2.5">
         <Chip tone={st.tone}>{st.label}</Chip>
@@ -175,7 +177,7 @@ export function RunScreen({ id }: { id: string }) {
       </Link>
       <header className="flex flex-wrap items-center gap-2">
         <h1 className="text-[22px] font-semibold tracking-[-0.02em]">
-          {SCOPE_LABEL[r.scope]} check, {formatDateTime(r.created_at)}
+          {r.scope_title ?? `${SCOPE_LABEL[r.scope]} check`}, {formatDateTime(r.created_at)}
         </h1>
         <Chip tone={st.tone}>{st.label}</Chip>
       </header>
@@ -199,7 +201,7 @@ export function RunScreen({ id }: { id: string }) {
                     {p.a.author} and {p.b.author}
                   </span>
                   <span className="text-[12.5px] text-muted-foreground">
-                    {p.problem_title}, {p.language}
+                    {p.problem_title}, <LanguageName id={p.language} />
                   </span>
                 </Link>
               </li>
@@ -227,7 +229,7 @@ export function PairScreen({ id }: { id: string }) {
         </h1>
         <Chip tone={similarityTone(p.similarity)}>{similarityLabel(p.similarity)} similar</Chip>
         <span className="text-[13px] text-muted-foreground">
-          {p.problem_title}, {p.language}
+          {p.problem_title}, <LanguageName id={p.language} />
         </span>
       </header>
       <p className="rounded-lg bg-info-soft px-3.5 py-2.5 text-[12.5px] text-info">

@@ -27,13 +27,17 @@ import type { Assignment } from "@/lib/api/types";
 import { gradebookCsvUrl, latePolicyText, STATUS_TEXT } from "@/lib/classes";
 import { formatDateTime } from "@/lib/format";
 import { fromLocalInput } from "@/lib/time";
+import { useTabParam } from "@/lib/use-tab-param";
 import { DIFFICULTY, formatScore } from "@/lib/verdicts";
 
 import { useAssignment, useClass, useDeleteAssignment, useExtension, useGradebook, useMembers, useUpdateAssignment } from "../api";
 import { AssignmentFields, assignmentPayload, fromAssignment, type AssignmentValues } from "./assignment-form";
 
+const TABS = ["problems", "gradebook", "extensions", "edit"] as const;
+
 export function AssignmentScreen({ id }: { id: string }) {
   const { staff } = usePermissions();
+  const [tab, setTab] = useTabParam<(typeof TABS)[number]>("problems", TABS);
   const a = useAssignment(id);
   const klass = useClass(a.data?.class_id ?? "");
   const teacher = staff || klass.data?.my_role === "teacher";
@@ -65,7 +69,7 @@ export function AssignmentScreen({ id }: { id: string }) {
       </Link>
       <Header a={as} teacher={teacher} />
       {teacher ? (
-        <Tabs defaultValue="problems">
+        <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
           <TabsList>
             <TabsTrigger value="problems">Problems</TabsTrigger>
             <TabsTrigger value="gradebook">Gradebook</TabsTrigger>

@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Field, FieldError } from "@/components/ui/label";
 import { SimpleSelect } from "@/components/ui/select";
 import { VerdictChip } from "@/components/verdict-chip";
+import { LanguageName } from "@/components/language-name";
 import { useLanguages } from "@/features/problems/api";
 import { errorMessage } from "@/lib/api/errors";
 import type { ProblemAdmin, Reference, ReferenceIn } from "@/lib/api/types";
@@ -74,7 +75,7 @@ export function SolutionsTab({ problem: p }: { problem: ProblemAdmin }) {
                 <div className="min-w-0 flex-1">
                   <div className="text-[13.5px] font-medium">{r.name}</div>
                   <div className="text-[12px] text-muted-foreground">
-                    {r.language}, must get {verdictSpec(r.expected).label}
+                    <LanguageName id={r.language} />, must get {verdictSpec(r.expected).label}
                   </div>
                 </div>
                 {r.last_verdict && (

@@ -127,6 +127,17 @@ export async function recordCandidateEvent(kind: "paste" | "tab_hidden" | "tab_v
   }
 }
 
+/** What the link is for (title, duration, instructions) without starting the clock. */
+export function useCandidatePreview(token: string | null | undefined) {
+  return useQuery({
+    queryKey: ["candidate", "preview", token],
+    queryFn: () => unwrap(api.POST("/api/v1/candidate/preview", { body: { token: token ?? "" } })),
+    enabled: !!token,
+    staleTime: STALE.live,
+    retry: false,
+  });
+}
+
 export async function openCandidateSession(token: string) {
   return unwrap(api.POST("/api/v1/candidate/session", { body: { token } }));
 }

@@ -3,26 +3,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, unwrap } from "@/lib/api/client";
-import { ApiError } from "@/lib/api/errors";
 import type { User } from "@/lib/api/types";
 import { qk, STALE } from "@/lib/query-keys";
 import { isAdmin, isStaff } from "@/lib/roles";
 
 /**
- * The signed-in user, or null for a signed-out visitor (a 401 here is not an error:
- * problems are public). Any other failure is an error the shell shows.
+ * The signed-in user, or null for a signed-out visitor. Problems are public, so the
+ * session endpoint answers signed-out visitors with 200 and no user instead of a 401
+ * (which browsers log as an error on every public page view).
  */
 export function useMe() {
   return useQuery({
     queryKey: qk.me,
-    queryFn: async (): Promise<User | null> => {
-      try {
-        return await unwrap(api.GET("/api/v1/auth/me"));
-      } catch (err) {
-        if (err instanceof ApiError && err.status === 401) return null;
-        throw err;
-      }
-    },
+    queryFn: async (): Promise<User | null> => (await unwrap(api.GET("/api/v1/auth/session"))).user ?? null,
     staleTime: STALE.static,
     retry: false,
   });

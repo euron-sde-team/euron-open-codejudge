@@ -16,7 +16,9 @@ export interface CellView {
  * no solve, "?" while something is pending (frozen or judging). IOI: the best score.
  */
 export function cellView(format: ContestFormat, cell: ScoreCell | undefined, points = 100): CellView {
-  if (!cell || (cell.attempts === 0 && cell.pending === 0)) return { text: "", sub: null, tone: "empty", label: "No attempt" };
+  // ICPC cells count only the rejected tries before the first accept (a first-try solve has
+  // attempts 0); IOI cells count every submission.
+  if (!cell || (!cell.solved && cell.attempts === 0 && cell.pending === 0)) return { text: "", sub: null, tone: "empty", label: "No attempt" };
   if (format === "ioi") {
     const score = Math.round(cell.score * 100) / 100;
     const tone = cell.pending > 0 && score === 0 ? "pending" : score >= points ? "solved" : score > 0 ? "partial" : "failed";
@@ -28,7 +30,7 @@ export function cellView(format: ContestFormat, cell: ScoreCell | undefined, poi
     };
   }
   if (cell.solved) {
-    const wrong = cell.attempts - 1;
+    const wrong = cell.attempts;
     return {
       text: wrong > 0 ? `+${wrong}` : "+",
       sub: cell.minute != null ? `${cell.minute}'` : null,

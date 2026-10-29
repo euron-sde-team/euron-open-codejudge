@@ -15,6 +15,7 @@ import { Chip } from "@/components/ui/chip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VerdictChip } from "@/components/verdict-chip";
+import { LanguageName } from "@/components/language-name";
 import { usePermissions } from "@/features/auth/api";
 import { ApiError, errorMessage } from "@/lib/api/errors";
 import type { Contest, ContestStatus } from "@/lib/api/types";
@@ -240,7 +241,7 @@ function ContestSubmissions({ contest: c }: { contest: Contest }) {
                 <td className="px-3 py-2.5">
                   {labels.get(s.problem_id) ?? ""} {s.problem_title}
                 </td>
-                <td className="px-3 py-2.5 text-muted-foreground">{s.language}</td>
+                <td className="px-3 py-2.5 text-muted-foreground"><LanguageName id={s.language} /></td>
                 <td className="px-3 py-2.5">
                   <VerdictChip verdict={s.status === "done" ? s.verdict : "JUDGING"} />
                 </td>

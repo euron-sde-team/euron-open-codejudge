@@ -14,9 +14,12 @@ import { Surface, SurfaceHeader } from "@/components/surface";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VerdictChip } from "@/components/verdict-chip";
+import { LanguageName } from "@/components/language-name";
 import { usePermissions } from "@/features/auth/api";
 import { formatNumber, formatRatio, formatRelative } from "@/lib/format";
 import { DIFFICULTY, formatScore, formatTime } from "@/lib/verdicts";
+
+import { useLanguages } from "@/features/problems/api";
 
 import { useMyProgress, useOverview, useProblemStats } from "../api";
 import { DailyChart, RowBars, VerdictMixBar } from "./charts";
@@ -34,6 +37,7 @@ export function AnalyticsScreen() {
   const { user, staff } = usePermissions();
   const [days, setDays] = React.useState<Days>("30");
   const q = useOverview(Number(days));
+  const languages = useLanguages();
   if (user && !staff) return <AdminOnly what="Analytics" />;
   const o = q.data;
   return (
@@ -95,7 +99,7 @@ export function AnalyticsScreen() {
                   <h2 className="mb-3 text-[14px] font-semibold">Languages</h2>
                   <RowBars
                     rows={o.languages.map((l) => ({
-                      label: l.language,
+                      label: languages.data?.find((x) => x.id === l.language)?.name ?? l.language,
                       value: l.submissions,
                       display: formatNumber(l.submissions),
                       detail: `${formatRatio(l.submissions ? l.accepted / l.submissions : null)} accepted`,
@@ -231,7 +235,7 @@ export function ProgressScreen() {
                   <li key={s.id}>
                     <Link href={`/submissions/${s.id}`} className="flex flex-wrap items-center gap-3 py-2 text-[13px] hover:text-primary">
                       <span className="min-w-0 flex-1 truncate font-medium">{s.problem_title}</span>
-                      <span className="text-muted-foreground">{s.language}</span>
+                      <span className="text-muted-foreground"><LanguageName id={s.language} /></span>
                       <VerdictChip verdict={s.verdict} />
                       <span className="tabular w-20 text-right">{formatScore(s.score, s.max_score)}</span>
                       <span className="w-20 text-right text-muted-foreground">{formatRelative(s.created_at)}</span>

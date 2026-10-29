@@ -90,6 +90,9 @@ markers = [
   "stack: needs the running stack with real judge workers (make up, then make test-stack)",
 ]
 addopts = "-ra"
+# A test running longer than this gets every thread's stack dumped (it is not killed), so
+# a hang shows where it waits instead of only that it waits.
+faulthandler_timeout = 120
 
 [tool.coverage.run]
 source = ["codejudge"]
